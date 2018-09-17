@@ -1,9 +1,29 @@
-import os 
+import subprocess 
 
-def run_MD(name,inputfile,prmtop,logfile):
+def run_MD(inputfile, jobname, topology, logfile, engine="AMBER"):
     """
     Function takes a name and runs MD
-    """
-    sander -O -i inputfile.in -o name.out -x name.nc -p system.prmtop -c name.rst7 -r name_out.rst7 -inf name.info >> log.log
-
+    
+    Parameters
+    -----------
+    inputfile : str 
+        input file containing simulation details 
+    jobname : str
+        name for all files associated with run 
+    topology : str 
+        name of topology file (e.g. for amber it would be  "system.prmtop")
+    logfile : str
+        file to redirect run output too
+    engine: stf
+        engine being used for simulation, only takes AMBER inputs
+    """ 
+    commands = ["sander", "-O",
+                "-i", inputfile + ".in",
+                "-o", jobname + ".out",
+                "-x", jobname + ".nc",
+                "-p", topology + ".prmtop",
+                "-c", jobname + ".rst7",
+                "-r", jobname + "_out.rst7",
+                "-inf", jobname + ".info"]
+    subprocess.run(commands, capture_output=True, stdout=jobname+".log", text=True)
 
