@@ -1,11 +1,12 @@
 import subprocess 
 
+
 def run_MD(inputfile, jobname, topology, logfile, engine="AMBER"):
     """
-    Function takes a name and runs MD
+    Function takes input files and runs MD from them.
     
     Parameters
-    -----------
+    ----------
     inputfile : str 
         input file containing simulation details 
     jobname : str
@@ -18,12 +19,12 @@ def run_MD(inputfile, jobname, topology, logfile, engine="AMBER"):
         engine being used for simulation, only takes AMBER inputs
     """ 
     commands = ["sander", "-O",
-                "-i", inputfile + ".in",
+                "-i", inputfile,
                 "-o", jobname + ".out",
                 "-x", jobname + ".nc",
-                "-p", topology + ".prmtop",
+                "-p", topology,
                 "-c", jobname + ".rst7",
                 "-r", jobname + "_out.rst7",
                 "-inf", jobname + ".info"]
-    subprocess.run(commands, capture_output=True, stdout=jobname+".log", text=True)
-
+    subprocess.run(commands, capture_output=True,
+                   stdout=jobname + ".log", text=True)
