@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 
 
@@ -34,24 +35,68 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
 
 class ShootingPoint:
     def __init__(self):
-        self.name = None
-        self.forward_commit = None # "status" of forward"
-        self.backward_commit = None
-        self.run_status = None # final "status"
+        self.name = None  # Name of shooting point
+        self.forward_commit = None  # Status of forward simulation
+        self.reverse_commit = None  # Status of reverse simulation
+        self.run_status = None  # Result of shooting point
         self.path = None
         return
 
-    def run_forward(self):
-        run_MD()
-        self.check_if_committed()
+    def run_forward(self, inputfile="fwd.in"):
+        """
+        Function launches forward simulation based on provided MD input file
+        and calls check_if_committed to evaluate if the run ends up in a basin
+
+        Parameters
+        ----------
+        inputfile : str
+            Input file for MD production run
+        """
+        jobname = self.name + "_f"
+        logfile = self.name + "_f.log"
+        run_MD(inputfile, jobname, logfile, topology="system.prmtop",
+               engine="AMBER")
+        self.forward_commit = self.check_if_committed(logfile)
         return
 
-    def run_backward(self):
-        run_MD(params)
+    def run_reverse(self, inputfile="rev.in"):
+        """
+        Function launches reverse simulation based on provided MD input file
+        and calls check_if_committed to evaluate if the run ends up in a basin
+
+        Parameters
+        ----------
+        inputfile: str
+            Input file for MD production run
+        """
+        jobname = self.name + "_r"
+        logfile = self.name + "_r.log"
+        run_MD(inputfile, jobname, logfile, topology="system.prmtop",
+               engine="AMBER")
+        self.reverse_commit = self.check_if_committed(logfile)
         return
 
-    def check_if_committed(self):
-        return
+    def check_if_committed(self, logfile):
+        """
+        Function checks a logfile to see if a simulation commited to a basin
+
+        Parameters
+        ----------
+        logfile : str
+            Output of MD simulation (and MD_run) contains PLUMED output
+
+         Returns
+        ----------
+        status: str/NoneType
+            Returns str of basin commited to or none type if simulation did
+            not commit
+        """
+        search_term = "COMMITED"
+        status = None
+        for line in open(logfile, 'r'):
+            if re.search(search_term, line):
+                status = line.rstrip()
+        return status
 
     def generate_new_shooting_points(self):
         return
