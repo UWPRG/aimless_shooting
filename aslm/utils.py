@@ -1,22 +1,21 @@
-import pandas as pd
-
-from .core import ShootingPoint
 
 
-def log(sp_name, CVs, result, filename='log'):
+def log_run(sp_name, CVs, result, filename='log'):
     """Logs information after a shooting point run to log file.
 
     Parameters
     ----------
     sp_name : str
-    CVs : str
+    CVs : list of int or float
         Formatted string containing the values of all CVs.
     result : str
         Outcome of shooting point evaluation. Options are 'accept',
-        'reject', or 'inconclusive'."""
+        'reject', or 'inconclusive'.
+    filename : str, optional
+        Name of log file."""
 
     with open(filename, 'a') as f:
-        line = "{}\t{}\t{}".format(sp_name, CVs, result)
+        line = "{} {} {}".format(sp_name, CVs, result)
         f.write(line)
     return
 
@@ -35,4 +34,11 @@ def get_colvar_header(colvar_file):
     with open(colvar_file, 'r') as f:
         header = f.readline()
     header = header.split(' ')[3:]
+    header[-1] = header[-1].rstrip()
     return header
+
+
+def log_header(colvar_header, filename='log'):
+    with open(filename, 'a') as f:
+        f.write("{} {} {}".format('NAME', ' '.join(colvar_header), 'RESULT'))
+    return
