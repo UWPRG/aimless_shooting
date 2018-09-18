@@ -99,6 +99,7 @@ class ShootingPoint:
         return status
 
     def generate_new_shooting_points(self):
+
         return
 
     def generate_velocity(self, initfile="init.in", logfile=None,
