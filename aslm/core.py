@@ -41,13 +41,20 @@ class ShootingPoint:
         self.path = None
         return
 
-    def run_forward(self):
-        run_MD()
-        self.check_if_committed()
+    def run_forward(self, inputfile="fwd.in"):
+        jobname = self.name + "_f"
+        logfile = self.name + "_f.log"
+        run_MD(inputfile, jobname, logfile, topology ="system.prmtop", engine="AMBER")
+        # check if committed 
+        # self.forward_commit = check_if_committed()
         return
 
-    def run_backward(self):
-        run_MD(params)
+    def run_reverse(self, inputfile="rev.in"):
+        jobname = self.name + "_r"
+        logfile = self.name + "_r.log"
+        run_MD(inputfile, jobname, logfile, topology ="system.prmtop", engine="AMBER")
+        # check if committed 
+        # self.backward_commit = check_if_committed()
         return
 
     def check_if_committed(self):
