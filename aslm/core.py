@@ -1,23 +1,25 @@
-import subprocess 
+import os
+import subprocess
 
 
-def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop", engine="AMBER"):
+def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
+           engine="AMBER"):
     """
     Function takes input files and runs MD from them.
-    
+
     Parameters
     ----------
-    inputfile : str 
-        input file containing simulation details 
+    inputfile : str
+        input file containing simulation details
     jobname : str
-        name for all files associated with run 
-    topology : str 
+        name for all files associated with run
+    topology : str
         name of topology file (e.g. for amber it would be  "system.prmtop")
     logfile : str
         file to redirect run output too
     engine: stf
         engine being used for simulation, only takes AMBER inputs
-    """ 
+    """
     commands = ["sander", "-O",
                 "-i", inputfile,
                 "-o", jobname + ".out",
@@ -33,14 +35,15 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop", engine="A
 class ShootingPoint:
     def __init__(self):
         self.name = None
-        self.forward_commit = None
+        self.forward_commit = None # "status" of forward"
         self.backward_commit = None
-        self.run_status = None
+        self.run_status = None # final "status"
         self.path = None
         return
 
     def run_forward(self):
-        run_MD(params)
+        run_MD()
+        self.check_if_committed()
         return
 
     def run_backward(self):
@@ -48,59 +51,72 @@ class ShootingPoint:
         return
 
     def check_if_committed(self):
-         
         return
 
     def generate_new_shooting_points(self):
         return
 
     def generate_velocity(self, initfile="init.in", logfile=None,
-                          topology="system.prmtop", engine="AMBER"):
+                          topology="system.prmtop", engine="AMBER",
+                          solvated=False):
         """
-        Function takes shooting point and generates velocities by running MD 
-        for 1 step with a very small timestep. It then generates the starting 
-        coordinte and velocity file for the forward and reverse simulation 
+        Function takes shooting point and generates velocities by running MD
+        for 1 step with a very small timestep. It then generates the starting
+        coordinte and velocity file for the forward and reverse simulation
+
+        Parameters
+        ----------
+        initfile : str
+            Input file, should contain params to run 1 MD step for 0.0001 fs
+        logfile : str
+            Name of output file
+        topology : str
+            Name of topology file
+        engine : str
+            Name of MD engine
+        solvated : bool
+            If system is solvated the restart file will save box coordinates
         """
 
         initname = self.name + "_init"
         fwd = self.name + "_f.rst7"
         rev = self.name + "_r.rst7"
         # Run short MD simulation to get self.name_init.rst7 file
-        run_MD(initfile, initname, logfile, topology, engine)) 
+        run_MD(initfile, initname, logfile, topology, engine)
 
         init = initname + ".rst7"
         with open(init, 'r') as init_file:
             init_lines = [line.rstrip('\n') for line in init_file]
-        #write forward restart file (same as init restart files)
+        # Write forward restart file (same as init restart files)
         with open(fwd, 'w') as fwd_file:
             job_name = init_lines[0].split()[0]
             num_atoms = init_lines[1].split()[0]
             rst_time = init_lines[1].split()[1]
             fwd_file.write(job_name + os.linesep)
             fwd_file.write("   " + num_atoms + "  " + rst_time + os.linesep)
-            for line in range(2, int(num_atoms)+2):
+            for line in range(2, int(num_atoms) + 2):
                 fwd_file.write(init_lines[line] + os.linesep)
-            # if solvated run print out last line (box coordinates)
-            if solvated == True:
+            # If solvated system print out last line (box coordinates)
+            if solvated:
                 fwd_file.write(init_lines[-1])
             else:
-                print ("No box dimensions to print")
+                print("No box dimensions to print")
                 pass
-        #write reverse restart file (with negative velocities)
+        # Write reverse restart file (with negative velocities)
         with open(rev, 'w') as rev_file:
             rev_file.write(job_name + os.linesep)
             rev_file.write("   " + num_atoms + "  " + rst_time + os.linesep)
-            #copy coordinates over exactly
-            coord_lines = int(int(num_atoms)/2) #2 xyz values per row
-            for sameline in range(2, coord_lines+2):
+            # Copy coordinates over exactly
+            coord_lines = int(int(num_atoms) / 2)  # 2 xyz values per row
+            for sameline in range(2, coord_lines + 2):
                 rev_file.write(init_lines[sameline] + os.linesep)
-            for revline in range(coord_lines+2,coord_lines*2+2):
+            for revline in range(coord_lines + 2, coord_lines * 2 + 2):
                 fline = map(float, init_lines[revline].split())
                 rev_file.write("".join(" % 11.7f" % -num for num in fline))
                 rev_file.write(os.linesep)
-            # if solvated run print out last line (box coordinates)
-            if solvated == True:
+            # If solvated system print out last line (box coordinates)
+            if solvated:
                 rev_file.write(init_lines[-1])
             else:
-                print ("No box dimensions to print")
+                print("No box dimensions to print")
                 pass
