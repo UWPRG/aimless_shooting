@@ -1,4 +1,3 @@
-import fileinput
 import os
 import re
 import subprocess
@@ -32,6 +31,7 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
                 "-inf", jobname + ".info"]
     subprocess.run(commands, capture_output=True,
                    stdout=logfile, text=True)
+
 
 def find_and_replace(line, substitutions):
     """
@@ -118,8 +118,8 @@ class ShootingPoint:
         return status
 
     def generate_new_shooting_points(self, deltaT, tag,
-                                     topology="system.prmtop", 
-                                     cpptrajskel="cpptraj_skel.in"
+                                     topology="system.prmtop",
+                                     cpptrajskel="cpptraj_skel.in",
                                      cpptrajin="cpptraj.in"):
         """
         Wrapper for cpptraj (AmberTools14). Creates an input file from cpptraj
@@ -128,10 +128,11 @@ class ShootingPoint:
 
         Parameters
         ----------
-        cpptrajin : str 
+        cpptrajin : str
             Input file for cpptraj
         deltaT : str
-            Frames away from the original shooting point to create new restart file
+            Frames away from the original shooting point to create new
+            restart file
         tag : str
             Identifier taged on to filename to track where the new shooting
             point is created from
@@ -142,7 +143,7 @@ class ShootingPoint:
         cpptrajin : str
             Will write to and treat this as the cpptraj input file
         """
-        
+
         trajectory = self.name + ".nc"
         outfile = self.name + tag + ".rst7"
 
@@ -153,16 +154,16 @@ class ShootingPoint:
 
         substitutions = {topology_text: topology, trajectory_text: trajectory,
                          deltaT_text: deltaT, outfile_text: outfile}
-        
+
         # First create input file (cpptraj.in)
-        with open(cpptrajskel,'r') as file:
+        with open(cpptrajskel, 'r') as file:
             lines = file.readlines()
-        with open(cpptrajin,'w') as file:
+        with open(cpptrajin, 'w') as file:
             for line in lines:
-                file.write(find_and_replace(line,substitutions)
-        
+                file.write(find_and_replace(line, substitutions))
+
         # Run cpptraj to get new restart file
-        commands = ["cpptraj","-i",cpptrajin]
+        commands = ["cpptraj", "-i", cpptrajin]
         subprocess.run(commands)
 
     def generate_velocity(self, initfile="init.in", logfile=None,
