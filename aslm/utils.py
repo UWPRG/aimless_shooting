@@ -22,8 +22,17 @@ def log(sp_name, CVs, result, filename='log'):
 
 
 def get_colvar_header(colvar_file):
+    """Grabs the names of the collective variables from COLVAR file.
+    
+    Parameters
+    ----------
+    colvar_file : str
+    
+    Returns
+    -------
+    header : list of str
+        List containing all the names of the collective variables."""
     with open(colvar_file, 'r') as f:
         header = f.readline()
-
     header = header.split(' ')[3:]
     return header
