@@ -1,0 +1,5 @@
+parm PRMTOP
+trajin TRAJECTORY FRAME FRAME 1 
+trajout OUTFILE
+run
+quit
