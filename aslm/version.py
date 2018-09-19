@@ -63,4 +63,4 @@ MICRO = _version_micro
 VERSION = __version__
 # PACKAGE_DATA = {'mdstates': [pjoin('data', '*')]}
 PACKAGE_DATA = {}
-REQUIRES = []
+REQUIRES = ['pandas', 'numpy']

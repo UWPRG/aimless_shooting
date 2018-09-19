@@ -1,0 +1,7 @@
+[run]
+branch = True
+source = aslm/*
+include = aslm/*
+omit = */setup.py
+[report]
+include = aslm/*
