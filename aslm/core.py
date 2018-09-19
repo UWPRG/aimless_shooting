@@ -3,7 +3,7 @@ import re
 import subprocess
 
 import numpy as np
-import pandas as pd
+# import pandas as pd
 
 from .utils import log_run
 

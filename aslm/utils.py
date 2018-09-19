@@ -22,11 +22,11 @@ def log_run(sp_name, CVs, result, filename='log'):
 
 def get_colvar_header(colvar_file):
     """Grabs the names of the collective variables from COLVAR file.
-    
+
     Parameters
     ----------
     colvar_file : str
-    
+
     Returns
     -------
     header : list of str
