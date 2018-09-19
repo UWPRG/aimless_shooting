@@ -12,13 +12,13 @@ def test_log_run():
     with open("test.log", 'r') as f:
         line = f.readline()
     os.remove("test.log")
-    line = line.split()
+    line = line.split(' ')
     line[-1] = line[-1].rstrip()
     assert line[0] == "test1"
     for test, true in zip(line[1:6], test_CVs):
         assert float(test) == float(true)
     # assert line[1:6] == test_CVs
-    assert test_result == "accepted"
+    assert line[-1] == "accepted"
     return
 
 
