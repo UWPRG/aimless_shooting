@@ -120,7 +120,7 @@ class ShootingPoint:
         status = None
         for line in open(logfile, 'r'):
             if re.search(search_term, line):
-                status = line.rstrip()
+                status = int(line.split()[-1].rstrip())
         return status
 
     def generate_new_shooting_points(self, deltaT, tag,
