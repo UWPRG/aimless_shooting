@@ -2,6 +2,11 @@ import os
 import re
 import subprocess
 
+import numpy as np
+import pandas as pd
+
+from .utils import log_run
+
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
            engine="AMBER"):
@@ -57,8 +62,9 @@ class ShootingPoint:
         self.name = None  # Name of shooting point
         self.forward_commit = None  # Status of forward simulation
         self.reverse_commit = None  # Status of reverse simulation
-        self.run_status = None  # Result of shooting point
+        self.result = None  # Result of shooting point
         self.path = None
+        self.cv_values = None
         return
 
     def run_forward(self, inputfile="fwd.in"):
@@ -230,3 +236,28 @@ class ShootingPoint:
             else:
                 print("No box dimensions to print")
                 pass
+
+    def _read_cv_values(self, colvar_file='COLVAR'):
+        """Grabs the values of all CVs in first line of COLVAR.
+
+        Parameters
+        ----------
+        colvar_file : str, optional
+            Name of colvar file.
+
+        Returns
+        -------
+        data : numpy.ndarray
+            Values of CVs in first line, excluding time value."""
+        data = np.genfromtxt(colvar_file, max_rows=1)
+        self.cv_values = data[1:]
+        return
+
+    def log(self, filename='log'):
+        """Logging method."""
+        if self.cv_values:
+            pass
+        else:
+            self._read_cv_values()
+        log_run(self.name, self.cv_values, self.result, filename=filename)
+        return
