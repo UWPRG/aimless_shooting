@@ -24,7 +24,7 @@ def test_log_run():
 
 def test_get_colvar_header():
     test_file_loc = op.join(op.dirname(op.abspath(__file__)),
-                            'test_data', 'COLVAR')
+                            'test_data', 'COLVAR2')
 
     test_header = get_colvar_header(test_file_loc)
     assert test_header == ['d1', 'd2', 'd3']

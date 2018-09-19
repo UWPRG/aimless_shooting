@@ -8,7 +8,7 @@ from ..core import ShootingPoint
 
 def test_read_cv_values():
     test_file_loc = op.join(op.dirname(op.abspath(__file__)),
-                            'test_data', 'COLVAR')
+                            'test_data', 'COLVAR2')
     sp = ShootingPoint()
 
     sp._read_cv_values(test_file_loc)
