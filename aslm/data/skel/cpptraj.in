@@ -1,5 +1,5 @@
-parm $PATH_TO_PRMTOP
-trajin $TRAJECTORY $FRAME $FRAME 1
-trajout $OUTFILE
+parm system.prmtop
+trajin as1.nc 10 10 1 
+trajout as1_1.rst7
 run
 quit

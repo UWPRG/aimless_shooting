@@ -2,11 +2,16 @@ import os
 import re
 import subprocess
 
+import numpy as np
+# import pandas as pd
+
+from .utils import log_run
+
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
            engine="AMBER"):
     """
-    Function takes input files and runs MD from them.
+    Python wrapper to run MD from commandline
 
     Parameters
     ----------
@@ -33,13 +38,33 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
                    stdout=logfile, text=True)
 
 
+def find_and_replace(line, substitutions):
+    """
+    Function performs find and replace on a string given a dictionary of
+    substitution criteria. (Designed to be a sed-like command that can replace
+    multiple strings in a single pass)
+
+    Parameters
+    ----------
+    line : str
+        line of text that contains phrases to be replaced
+    substitutions: dict
+        Dictionary in format {"words_to_find": "words_to_replace"}
+    """
+    substrings = sorted(substitutions, key=len, reverse=True)
+    regex = re.compile('|'.join(map(re.escape, substrings)))
+    replace = regex.sub(lambda match: substitutions[match.group(0)], line)
+    return replace
+
+
 class ShootingPoint:
     def __init__(self):
         self.name = None  # Name of shooting point
         self.forward_commit = None  # Status of forward simulation
         self.reverse_commit = None  # Status of reverse simulation
-        self.run_status = None  # Result of shooting point
+        self.result = None  # Result of shooting point
         self.path = None
+        self.cv_values = None
         return
 
     def run_forward(self, inputfile="fwd.in"):
@@ -98,9 +123,54 @@ class ShootingPoint:
                 status = line.rstrip()
         return status
 
-    def generate_new_shooting_points(self):
+    def generate_new_shooting_points(self, deltaT, tag,
+                                     topology="system.prmtop",
+                                     cpptrajskel="cpptraj_skel.in",
+                                     cpptrajin="cpptraj.in"):
+        """
+        Wrapper for cpptraj (AmberTools14). Creates an input file from cpptraj
+        skeleton, creates a new restart file shifted deltaT frames away from
+        the original shooting point.
 
-        return
+        Parameters
+        ----------
+        cpptrajin : str
+            Input file for cpptraj
+        deltaT : str
+            Frames away from the original shooting point to create new
+            restart file
+        tag : str
+            Identifier taged on to filename to track where the new shooting
+            point is created from
+        topology : str
+            Topology file for system
+        cpptrajskel : str
+            Skeleton for cpptraj input file
+        cpptrajin : str
+            Will write to and treat this as the cpptraj input file
+        """
+
+        trajectory = self.name + ".nc"
+        outfile = self.name + tag + ".rst7"
+
+        topology_text = "PRMTOP"
+        trajectory_text = "TRAJECTORY"
+        deltaT_text = "FRAME"
+        outfile_text = "OUTFILE"
+
+        substitutions = {topology_text: topology, trajectory_text: trajectory,
+                         deltaT_text: deltaT, outfile_text: outfile}
+
+        # First create input file (cpptraj.in)
+        with open(cpptrajskel, 'r') as file:
+            lines = file.readlines()
+        with open(cpptrajin, 'w') as file:
+            for line in lines:
+                file.write(find_and_replace(line, substitutions))
+
+        # Run cpptraj to get new restart file
+        commands = ["cpptraj", "-i", cpptrajin]
+        subprocess.run(commands)
 
     def generate_velocity(self, initfile="init.in", logfile=None,
                           topology="system.prmtop", engine="AMBER",
@@ -166,3 +236,28 @@ class ShootingPoint:
             else:
                 print("No box dimensions to print")
                 pass
+
+    def _read_cv_values(self, colvar_file='COLVAR'):
+        """Grabs the values of all CVs in first line of COLVAR.
+
+        Parameters
+        ----------
+        colvar_file : str, optional
+            Name of colvar file.
+
+        Returns
+        -------
+        data : numpy.ndarray
+            Values of CVs in first line, excluding time value."""
+        data = np.genfromtxt(colvar_file, max_rows=1)
+        self.cv_values = data[1:]
+        return
+
+    def log(self, filename='log'):
+        """Logging method."""
+        if self.cv_values:
+            pass
+        else:
+            self._read_cv_values()
+        log_run(self.name, self.cv_values, self.result, filename=filename)
+        return
