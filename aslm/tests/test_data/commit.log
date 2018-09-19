@@ -1,0 +1,90 @@
+PLUMED: PLUMED is starting
+PLUMED: Version: 2.4.0-dev (git: 97192c7) compiled on Jul 14 2016 at 18:44:16
+PLUMED: Please cite this paper when using PLUMED [1]
+PLUMED: For further information see the PLUMED web page at http://www.plumed.org
+PLUMED: Molecular dynamics engine: amber
+PLUMED: Precision of reals: 8
+PLUMED: Running over 1 node
+PLUMED: Number of threads: 1
+PLUMED: Cache line size: 512
+PLUMED: Number of atoms: 22
+PLUMED: File suffix: 
+PLUMED: FILE: plumed.dat
+PLUMED: Action TORSION
+PLUMED:   with label phi
+PLUMED:   between atoms 5 7 9 15
+PLUMED:   using periodic boundary conditions
+PLUMED: Action TORSION
+PLUMED:   with label psi
+PLUMED:   between atoms 7 9 15 17
+PLUMED:   using periodic boundary conditions
+PLUMED: Action TORSION
+PLUMED:   with label xi
+PLUMED:   between atoms 16 15 17 19
+PLUMED:   using periodic boundary conditions
+PLUMED: Action TORSION
+PLUMED:   with label theta
+PLUMED:   between atoms 6 5 7 9
+PLUMED:   using periodic boundary conditions
+PLUMED: Action ANGLE
+PLUMED:   with label a1
+PLUMED:   between atoms 5 6 7
+PLUMED:   using periodic boundary conditions
+PLUMED: Action ANGLE
+PLUMED:   with label a2
+PLUMED:   between atoms 1 3 9
+PLUMED:   using periodic boundary conditions
+PLUMED: Action ANGLE
+PLUMED:   with label a3
+PLUMED:   between atoms 4 10 11
+PLUMED:   using periodic boundary conditions
+PLUMED: Action ANGLE
+PLUMED:   with label a4
+PLUMED:   between atoms 6 9 15
+PLUMED:   using periodic boundary conditions
+PLUMED: Action COMMITTOR
+PLUMED:   with label @8
+PLUMED:   with stride 1
+PLUMED:   with arguments phi psi
+PLUMED:   on plumed log file
+PLUMED:   with format  %f
+PLUMED:   BASIN 1 definition:
+PLUMED:  -2.610000 - -0.520000
+PLUMED:  0.000000 - 3.140000
+PLUMED:   BASIN 2 definition:
+PLUMED:  0.520000 - 2.260000
+PLUMED:  -3.140000 - 0.000000
+PLUMED: Action PRINT
+PLUMED:   with label @9
+PLUMED:   with stride 1
+PLUMED:   with arguments phi psi xi theta a1 a2 a3 a4
+PLUMED:   on file COLVAR
+PLUMED:   with format  %f
+PLUMED: END FILE: plumed.dat
+PLUMED: Timestep: 0.001000
+PLUMED: KbT: 2.494323
+PLUMED: Relevant bibliography:
+PLUMED:   [1] Tribello, Bonomi, Branduardi, Camilloni, and Bussi, Comput. Phys. Commun. 185, 604 (2014)
+PLUMED: Please read and cite where appropriate!
+PLUMED: Finished setup
+#! FIELDS time phi psi
+#! SET min_phi -pi
+#! SET max_phi pi
+#! SET min_psi -pi
+#! SET max_psi pi
+ 0.092000 0.526774 -0.945929
+#! FIELDS
+#! SET min_phi -pi
+#! SET max_phi pi
+#! SET min_psi -pi
+#! SET max_psi pi
+#! SET COMMITED TO BASIN 2 
+
+PLUMED:                                               Cycles        Total      Average      Minumum      Maximum
+PLUMED:                                                    1     0.009542     0.009542     0.009542     0.009542
+PLUMED: 1 Prepare dependencies                            93     0.000121     0.000001     0.000001     0.000008
+PLUMED: 2 Sharing data                                    93     0.001617     0.000017     0.000004     0.001269
+PLUMED: 3 Waiting for data                                93     0.000037     0.000000     0.000000     0.000004
+PLUMED: 4 Calculating (forward loop)                      93     0.002139     0.000023     0.000021     0.000128
+PLUMED: 5 Applying (backward loop)                        93     0.000958     0.000010     0.000010     0.000037
+PLUMED: 6 Update                                          93     0.001114     0.000012     0.000009     0.000145
