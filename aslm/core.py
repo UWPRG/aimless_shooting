@@ -8,6 +8,20 @@ import numpy as np
 from .utils import log_run
 
 
+class AimlessShooting:
+    """Runs the aimless shooting algorithm with a pool of starting points.
+
+    Parameters
+    ----------
+    starting_points : str
+        Location of a directory containing structures to start with.
+    """
+    def __init__(self, starting_points):
+        self.starting_points = starting_points
+        return
+    pass
+
+
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
            engine="AMBER"):
     """
