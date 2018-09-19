@@ -1,0 +1,24 @@
+Initalization Run, vaccum
+ &cntrl
+  ig=-1                   ! set random seed
+  imin=0,                 ! minimization: 0=no, 1=yes
+  irest=0,                ! restart: 0=no, 1=yes
+  ntx=1,                  ! 1=read coorinates only, 5=read coordinates and vel
+  nstlim=1,    		  ! # of MD steps
+  dt=0.000001,            ! timesteps in ps ( = 0.001 fs)
+  ntt=2,                  ! Thermostat; 0=NVE, 1=Berendsen (NO!), 2=Andersen, 3=Langevinn
+  tempi=300.0,             
+  temp0=300.0,            
+  vrand=1000,             ! Andersen: vels randomized every vrand steps.  Langevin: gamma_ln is collision frequency in ps^-1n
+  ntb=0,                  ! PBCs: 0=none, 1=constant V, 2=constant P
+  ntc=2,                  ! SHAKE; 1=no SHAKE, 2=Hbonds are constrained, 3=all bonds constrained
+  ntf=2,                  ! ntf=ntc
+  ntwx=0,                 ! Print freq to mdcrd, 0=never write to mdcrd 
+  ntpr=1,                 ! Print freq to log
+  ntwr=1,                 ! Print freq to restart, will always print at end of run
+  cut=12.0,               ! nonbonded cutoff (large for in-vaccuo)
+! iwrap=0,                ! wrap coordinates for visualization (only when pbc on)
+  ioutfm=1, 	  	  !output set to binary NetCDF format
+! plumed = 1 
+! plumedfile = 'plumed.dat'
+ /
