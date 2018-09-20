@@ -1,11 +1,12 @@
 import os
+import os.path as op
 import re
 import subprocess
 
 import numpy as np
 # import pandas as pd
 
-from .utils import log_run
+from .utils import log_run, get_file_name
 
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
@@ -58,12 +59,18 @@ def find_and_replace(line, substitutions):
 
 
 class ShootingPoint:
-    def __init__(self):
-        self.name = None  # Name of shooting point
+    def __init__(self, name, input_file, topology_file=None,
+                 md_engine="AMBER"):
+        self.name = name  # Name of shooting point
+        self.input_file = input_file  # Path to input file (e.g., `init.in`)
+        self.topology_file = topology_file  # Path to topology file
+        self.md_engine = md_engine
+        self._input_file_dir = op.dirname(op.abspath(self.input_file))
+        self._input_file_name = op.splitext(op.basename(self.input_file))[0]
+
         self.forward_commit = None  # Status of forward simulation
         self.reverse_commit = None  # Status of reverse simulation
         self.result = None  # Result of shooting point
-        self.path = None
         self.cv_values = None
         return
 
@@ -79,7 +86,7 @@ class ShootingPoint:
         """
         jobname = self.name + "_f"
         logfile = self.name + "_f.log"
-        run_MD(inputfile, jobname, logfile, topology="system.prmtop",
+        run_MD(self.input_file, jobname, logfile, topology="system.prmtop",
                engine="AMBER")
         self.forward_commit = self.check_if_committed(logfile)
         return
