@@ -10,7 +10,7 @@ from ..core import ShootingPoint, find_and_replace
 def test_read_cv_values():
     test_file_loc = op.join(op.dirname(op.abspath(__file__)),
                             'test_data', 'COLVAR2')
-    sp = ShootingPoint()
+    sp = ShootingPoint(name='test', input_file='.')
 
     sp._read_cv_values(test_file_loc)
     test_values = sp.cv_values
@@ -29,7 +29,7 @@ def test_find_and_replace():
 
 
 def test_check_if_commited():
-    sp = ShootingPoint()
+    sp = ShootingPoint(name='test', input_file='.')
     test_file_loc = op.join(op.dirname(op.abspath(__file__)),
                             'test_data', 'commit.log')
     test_result = sp.check_if_committed(test_file_loc)
@@ -43,7 +43,7 @@ def test_check_if_commited():
 
 
 def test_log():
-    sp = ShootingPoint()
+    sp = ShootingPoint(name='test', input_file='.')
     sp.name = 'test'
     sp.cv_values = [1, 2, 3]
     sp.result = 'accepted'
