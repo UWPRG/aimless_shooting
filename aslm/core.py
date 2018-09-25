@@ -16,10 +16,77 @@ class AimlessShooting:
     starting_points : str
         Location of a directory containing structures to start with.
     """
-    def __init__(self, starting_points):
+    def __init__(self, starting_points, logfile='log'):
         self.starting_points = starting_points
+        self.logfile = logfile
+        self.queue = []
+        self.num_accepts = 0
+        self.accepts_goal = 100
+        self.counter = 0
+        self.delta_t = None
         return
-    pass
+
+    def start(self):
+        # Initialize log file (place header with CV names).
+        while self.num_accepts < self.accepts_goal:
+            # Generate the new ShootingPoint.
+            # Check queue first.
+            if self.queue:
+                directory = './queue'
+            # If queue if empty, pull from guesses.
+            else:
+                directory = starting_points
+
+            # In `self.initialize_shooting_point()`, the
+            # queue gets updated.
+            sp = self.initialize_shooting_point(directory)
+            sp.generate_velocities()
+            sp.run_forward()
+            if sp.forward_commit is None:
+                # Restart the shooting point with new velocities.
+            else:
+                sp.run_reverse()
+
+            if sp.result == 'inconclusive':
+                # Restart the shooting point with new velocities.
+                sp.log(logfile)
+            elif sp.result == 'reject':
+                sp.log(logfile)
+            elif sp.accept == 'accept':
+                # Generate 3 new shooting points.
+                sp.log(logfile)
+                self.num_accepts += 1
+            else:
+                raise Exception("Bad shooting point result.")
+
+            # Increment the job counter.
+            self.counter += 1
+        return
+
+    def initialize_shooting_point(self, directory):
+        # sp = ShootingPoint(...)
+        return sp
+
+    def launch_shooting_point(self, sp):
+
+    def evaluate(self, sp):
+        sp.generate_new_shooting_points()
+        return
+
+AS = AimlessShooting()
+AS.start()
+
+
+"""
+copy in starting structure
+create ShootingPoint
+run the ShootingPoint
+evaluate ShootingPoint
+ - if accept, create 3 new ShootingPoints
+ - if reject, move onto new ShootingPoint
+ - if inconclusive, recycle ShootingPoint
+
+"""
 
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
