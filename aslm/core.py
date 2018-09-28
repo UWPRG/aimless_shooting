@@ -29,35 +29,54 @@ class AimlessShooting:
     def start(self):
         # Initialize log file (place header with CV names).
         while self.num_accepts < self.accepts_goal:
-            # Generate the new ShootingPoint.
             # Check queue first.
             if self.queue:
                 directory = './queue'
+                print ('current directory:', directory)
             # If queue if empty, pull from guesses.
             else:
-                directory = starting_points
-
-            # In `self.initialize_shooting_point()`, the
-            # queue gets updated.
-            sp = self.initialize_shooting_point(directory)
+                directory = './starting_points'
+                print ('current directory:', directory)
+            
+            # Initialize a shooting point  
+            #sp = self.initialize_shooting_point(directory)
+            
+            # Generate velocities 
             sp.generate_velocities()
+            
+            # Run forward simulation
             sp.run_forward()
+            
+            # Check if forward simulation commits to basin 
             if sp.forward_commit is None:
-                # Restart the shooting point with new velocities.
+                # Check to see how many times sp has attempted to commit
+                # if attempts < attempt_criteria: 
+                    # Restart the shooting point with new velocities.
+                # else:
+                    # pass 
             else:
+                # Continue to run the reverse simulation
                 sp.run_reverse()
-
-            if sp.result == 'inconclusive':
-                # Restart the shooting point with new velocities.
-                sp.log(logfile)
-            elif sp.result == 'reject':
-                sp.log(logfile)
-            elif sp.accept == 'accept':
-                # Generate 3 new shooting points.
-                sp.log(logfile)
-                self.num_accepts += 1
-            else:
-                raise Exception("Bad shooting point result.")
+                # If reverse simulation does not commit to a basin 
+                if sp.reverse_commit is None:
+                    sp.result == 'inconclusive'
+                    sp.log(logfile) # Log run 
+                    # initialize a new --- RES
+                # If reverse simulation commits to the same basin as forward
+                elif sp.reverse_commit == sp.forward_commit: 
+                    sp.result == 'reject'
+                    sp.log(logfile)
+                    # launch new trajectory from queue
+                elif sp.reverse_commit != sp.forward_commit:  
+                    sp.result == 'accept'
+                    sp.log(logfile)
+                    self.num_accepts += 1
+                    # Generate 3 new shooting points
+                    #sp.generate_new_shooting_points(self, deltaT, tag)
+                    #sp.generate_new_shooting_points(self, deltaT, tag)
+                    #sp.generate_new_shooting_points(self, deltaT, tag)
+                else:
+                    raise Exception("Bad shooting point result.")
 
             # Increment the job counter.
             self.counter += 1
