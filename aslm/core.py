@@ -67,12 +67,12 @@ class AimlessShooting:
                     sp.log(logfile)
                     self.num_accepts += 1
                     # Generate 3 new shooting points
-                    # job1 =  sp.generate_new_shooting_points(self, deltaT, tag)
-                    # self.queue.append(job1)
-                    # job2 = sp.generate_new_shooting_points(self, deltaT, tag)
-                    # self.queue.append(job2)
-                    # job3 = sp.generate_new_shooting_points(self, deltaT, tag)
-                    # self.queue.append(job3)
+                    job1 =  sp.generate_new_shooting_points(self, deltaT, tag)
+                    self.queue.append(job1)
+                    job2 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    self.queue.append(job2)
+                    job3 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    self.queue.append(job3)
                 else:
                     raise Exception("Don't know how to handle shooting point
                                     result.")
@@ -87,15 +87,15 @@ class AimlessShooting:
             directory = './queue'
             print('current directory:', directory)
             name = self.queue[0].copy
-        # If queue if empty, pull from guesses.
+            os.copy(directory+"/"+name, .)
+            del self.queue[0]
         else:
             directory = './guesses'
             print('current directory:', directory)
             name = self.guesses[0].copy 
-        # copy restart file from working directory to working path h
-        # Initizalize an instance of the shootinf point class
-        sp = ShootingPoint(self, name, topology_file=None, md_engine="AMBER")
-        # remove name[0] when done
+            os.copy(directory+"/"+name, .)
+            del self.guesses[0]
+        sp = ShootingPoint(name, topology_file="system.prmtop", md_engine="AMBER")
         return sp
 
 AS = AimlessShooting()
