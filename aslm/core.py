@@ -92,7 +92,8 @@ class AimlessShooting:
             directory = './guesses'
             print('current directory:', directory)
             name = self.guesses[0].copy 
-        # copy files from working directory to path
+        # copy restart file from working directory to working path h
+        # Initizalize an instance of the shootinf point class
         sp = ShootingPoint(self, name, topology_file=None, md_engine="AMBER")
         # remove name[0] when done
         return sp
@@ -236,7 +237,7 @@ class ShootingPoint:
                 status = int(line.split()[-1].rstrip())
         return status
 
-    def generate_new_shooting_points(self, deltaT, tag,
+    def generate_new_shooting_points(self, deltaT, direction,
                                      topology="system.prmtop",
                                      cpptrajskel="cpptraj_skel.in",
                                      cpptrajin="cpptraj.in"):
@@ -252,7 +253,7 @@ class ShootingPoint:
         deltaT : str
             Frames away from the original shooting point to create new
             restart file
-        tag : str
+        direction : str
             Identifier taged on to filename to track where the new shooting
             point is created from
         topology : str
@@ -261,9 +262,19 @@ class ShootingPoint:
             Skeleton for cpptraj input file
         cpptrajin : str
             Will write to and treat this as the cpptraj input file
-        """
 
-        trajectory = self.name + ".nc"
+         Returns
+        ----------
+        outfile: str
+            Returns a strig of the restart file created from cpptraj
+        """
+        if direction == 'fwd': 
+            name = self.name + "_f"
+            tag = "_f"
+        elif direction == 'rev':
+            name = self.name + "_r"
+            tag = "_r"
+        trajectory = name + ".nc"
         outfile = self.name + tag + ".rst7"
 
         topology_text = "PRMTOP"
@@ -284,6 +295,8 @@ class ShootingPoint:
         # Run cpptraj to get new restart file
         commands = ["cpptraj", "-i", cpptrajin]
         subprocess.run(commands)
+
+        return outfile 
 
     def generate_velocity(self, logfile=None, topology="system.prmtop",
                           engine="AMBER", solvated=False):
