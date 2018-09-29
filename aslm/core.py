@@ -20,6 +20,7 @@ class AimlessShooting:
         self.starting_points = starting_points
         self.logfile = logfile
         self.queue = []
+        self.guesses = []
         self.num_accepts = 0
         self.accepts_goal = 100
         self.counter = 0
@@ -27,70 +28,74 @@ class AimlessShooting:
         return
 
     def start(self):
-        # Initialize log file (place header with CV names).
+        # *** Initialize log file (place header with CV names).
+        
+        # *** Generate a list containing files in guesses/
+
         while self.num_accepts < self.accepts_goal:
-            # Check queue first.
-            if self.queue:
-                directory = './queue'
-                print ('current directory:', directory)
-            # If queue if empty, pull from guesses.
-            else:
-                directory = './starting_points'
-                print ('current directory:', directory)
-            
-            # Initialize a shooting point  
-            #sp = self.initialize_shooting_point(directory)
-            
-            # Generate velocities 
+            # Initialize a shooting point
+            sp = self.initialize_shooting_point()
+
+            # Generate velocities
             sp.generate_velocities()
-            
+
             # Run forward simulation
             sp.run_forward()
-            
-            # Check if forward simulation commits to basin 
+
+            # Check if forward simulation commits to basin
             if sp.forward_commit is None:
                 # Check to see how many times sp has attempted to commit
-                # if attempts < attempt_criteria: 
+                # if attempts < attempt_criteria:
                     # Restart the shooting point with new velocities.
                 # else:
-                    # pass 
+                    # pass
             else:
                 # Continue to run the reverse simulation
                 sp.run_reverse()
-                # If reverse simulation does not commit to a basin 
+                # If reverse simulation does not commit to a basin
                 if sp.reverse_commit is None:
                     sp.result == 'inconclusive'
-                    sp.log(logfile) # Log run 
+                    sp.log(logfile)  # Log run
                     # initialize a new --- RES
                 # If reverse simulation commits to the same basin as forward
-                elif sp.reverse_commit == sp.forward_commit: 
+                elif sp.reverse_commit == sp.forward_commit:
                     sp.result == 'reject'
                     sp.log(logfile)
                     # launch new trajectory from queue
-                elif sp.reverse_commit != sp.forward_commit:  
+                elif sp.reverse_commit != sp.forward_commit:
                     sp.result == 'accept'
                     sp.log(logfile)
                     self.num_accepts += 1
                     # Generate 3 new shooting points
-                    #sp.generate_new_shooting_points(self, deltaT, tag)
-                    #sp.generate_new_shooting_points(self, deltaT, tag)
-                    #sp.generate_new_shooting_points(self, deltaT, tag)
+                    # job1 =  sp.generate_new_shooting_points(self, deltaT, tag)
+                    # self.queue.append(job1)
+                    # job2 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    # self.queue.append(job2)
+                    # job3 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    # self.queue.append(job3)
                 else:
-                    raise Exception("Bad shooting point result.")
+                    raise Exception("Don't know how to handle shooting point
+                                    result.")
 
             # Increment the job counter.
             self.counter += 1
         return
 
-    def initialize_shooting_point(self, directory):
-        # sp = ShootingPoint(...)
+    def initialize_shooting_point(self, name,  directory):
+        # Check queue first.
+        if self.queue:
+            directory = './queue'
+            print('current directory:', directory)
+            name = self.queue[0].copy
+        # If queue if empty, pull from guesses.
+        else:
+            directory = './guesses'
+            print('current directory:', directory)
+            name = self.guesses[0].copy 
+        # copy files from working directory to path
+        sp = ShootingPoint(self, name, topology_file=None, md_engine="AMBER")
+        # remove name[0] when done
         return sp
-
-    def launch_shooting_point(self, sp):
-
-    def evaluate(self, sp):
-        sp.generate_new_shooting_points()
-        return
 
 AS = AimlessShooting()
 AS.start()
@@ -158,10 +163,12 @@ def find_and_replace(line, substitutions):
 
 
 class ShootingPoint:
-    def __init__(self, name, input_file, topology_file=None,
+    def __init__(self, name, topology_file=None,
                  md_engine="AMBER"):
         self.name = name  # Name of shooting point
-        self.input_file = input_file  # Path to input file (e.g., `init.in`)
+        self.input_init = "init.in"
+        self.input_fwd = "fwd.in"
+        self.input_rev = "rev.in"
         self.topology_file = topology_file  # Path to topology file
         self.md_engine = md_engine
         self._input_file_dir = op.dirname(op.abspath(self.input_file))
@@ -173,7 +180,7 @@ class ShootingPoint:
         self.cv_values = None
         return
 
-    def run_forward(self, inputfile="fwd.in"):
+    def run_forward(self):
         """
         Function launches forward simulation based on provided MD input file
         and calls check_if_committed to evaluate if the run ends up in a basin
@@ -185,12 +192,12 @@ class ShootingPoint:
         """
         jobname = self.name + "_f"
         logfile = self.name + "_f.log"
-        run_MD(self.input_file, jobname, logfile, topology="system.prmtop",
+        run_MD(self.input_fwd, jobname, logfile, topology="system.prmtop",
                engine="AMBER")
         self.forward_commit = self.check_if_committed(logfile)
         return
 
-    def run_reverse(self, inputfile="rev.in"):
+    def run_reverse(self, inputfile):
         """
         Function launches reverse simulation based on provided MD input file
         and calls check_if_committed to evaluate if the run ends up in a basin
@@ -202,7 +209,7 @@ class ShootingPoint:
         """
         jobname = self.name + "_r"
         logfile = self.name + "_r.log"
-        run_MD(inputfile, jobname, logfile, topology="system.prmtop",
+        run_MD(self.input_rev, jobname, logfile, topology="system.prmtop",
                engine="AMBER")
         self.reverse_commit = self.check_if_committed(logfile)
         return
@@ -278,9 +285,8 @@ class ShootingPoint:
         commands = ["cpptraj", "-i", cpptrajin]
         subprocess.run(commands)
 
-    def generate_velocity(self, initfile="init.in", logfile=None,
-                          topology="system.prmtop", engine="AMBER",
-                          solvated=False):
+    def generate_velocity(self, logfile=None, topology="system.prmtop",
+                          engine="AMBER", solvated=False):
         """
         Function takes shooting point and generates velocities by running MD
         for 1 step with a very small timestep. It then generates the starting
@@ -288,8 +294,6 @@ class ShootingPoint:
 
         Parameters
         ----------
-        initfile : str
-            Input file, should contain params to run 1 MD step for 0.0001 fs
         logfile : str
             Name of output file
         topology : str
@@ -304,7 +308,7 @@ class ShootingPoint:
         fwd = self.name + "_f.rst7"
         rev = self.name + "_r.rst7"
         # Run short MD simulation to get self.name_init.rst7 file
-        run_MD(initfile, initname, logfile, topology, engine)
+        run_MD(self.input_init, initname, logfile, topology, engine)
 
         init = initname + ".rst7"
         with open(init, 'r') as init_file:
