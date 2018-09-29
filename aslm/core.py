@@ -6,7 +6,7 @@ import subprocess
 import numpy as np
 
 from .utils import log_run
-
+from .utils import log_header
 
 class AimlessShooting:
     """Runs the aimless shooting algorithm with a pool of starting points.
@@ -30,7 +30,7 @@ class AimlessShooting:
     def start(self):
         # *** Initialize log file (place header with CV names).
         
-        # *** Generate a list containing files in guesses/
+        # *** Generate a list containing files in guesses? Handles degeneracy? 
 
         while self.num_accepts < self.accepts_goal:
             # Initialize a shooting point
