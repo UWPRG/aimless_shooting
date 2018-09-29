@@ -26,7 +26,7 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
     engine: stf
         engine being used for simulation, only takes AMBER inputs
     """
-    commands = ["sander", "-O",
+    commands = ["sander.MPI", "-O",
                 "-i", inputfile,
                 "-o", jobname + ".out",
                 "-x", jobname + ".nc",
@@ -34,8 +34,13 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
                 "-c", jobname + ".rst7",
                 "-r", jobname + "_out.rst7",
                 "-inf", jobname + ".info"]
-    subprocess.run(commands, capture_output=True,
-                   stdout=logfile, text=True)
+    if logfile:
+        logf = open(logfile, 'w')
+    else:
+        logf = None
+    subprocess.run(commands, stdout=logfile)
+    logf.close()
+    return
 
 
 def find_and_replace(line, substitutions):
