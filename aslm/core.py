@@ -6,6 +6,112 @@ import subprocess
 import numpy as np
 
 from .utils import log_run
+from .utils import log_header
+
+class AimlessShooting:
+    """Runs the aimless shooting algorithm with a pool of starting points.
+
+    Parameters
+    ----------
+    starting_points : str
+        Location of a directory containing structures to start with.
+    """
+    def __init__(self, starting_points, logfile='log'):
+        self.starting_points = starting_points
+        self.logfile = logfile
+        self.queue = []
+        self.guesses = []
+        self.num_accepts = 0
+        self.accepts_goal = 100
+        self.counter = 0
+        self.delta_t = None
+        return
+
+    def start(self):
+        # *** Initialize log file (place header with CV names).
+        
+        # *** Generate a list containing files in guesses? Handles degeneracy? 
+
+        while self.num_accepts < self.accepts_goal:
+            # Initialize a shooting point
+            sp = self.initialize_shooting_point()
+
+            # Generate velocities
+            sp.generate_velocities()
+
+            # Run forward simulation
+            sp.run_forward()
+
+            # Check if forward simulation commits to basin
+            if sp.forward_commit is None:
+                # Check to see how many times sp has attempted to commit
+                # if attempts < attempt_criteria:
+                    # Restart the shooting point with new velocities.
+                # else:
+                    # pass
+            else:
+                # Continue to run the reverse simulation
+                sp.run_reverse()
+                # If reverse simulation does not commit to a basin
+                if sp.reverse_commit is None:
+                    sp.result == 'inconclusive'
+                    sp.log(logfile)  # Log run
+                    # initialize a new --- RES
+                # If reverse simulation commits to the same basin as forward
+                elif sp.reverse_commit == sp.forward_commit:
+                    sp.result == 'reject'
+                    sp.log(logfile)
+                    # launch new trajectory from queue
+                elif sp.reverse_commit != sp.forward_commit:
+                    sp.result == 'accept'
+                    sp.log(logfile)
+                    self.num_accepts += 1
+                    # Generate 3 new shooting points
+                    job1 =  sp.generate_new_shooting_points(self, deltaT, tag)
+                    self.queue.append(job1)
+                    job2 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    self.queue.append(job2)
+                    job3 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    self.queue.append(job3)
+                else:
+                    raise Exception("Don't know how to handle shooting point
+                                    result.")
+
+            # Increment the job counter.
+            self.counter += 1
+        return
+
+    def initialize_shooting_point(self, name,  directory):
+        # Check queue first.
+        if self.queue:
+            directory = './queue'
+            print('current directory:', directory)
+            name = self.queue[0].copy
+            os.copy(directory+"/"+name, .)
+            del self.queue[0]
+        else:
+            directory = './guesses'
+            print('current directory:', directory)
+            name = self.guesses[0].copy 
+            os.copy(directory+"/"+name, .)
+            del self.guesses[0]
+        sp = ShootingPoint(name, topology_file="system.prmtop", md_engine="AMBER")
+        return sp
+
+AS = AimlessShooting()
+AS.start()
+
+
+"""
+copy in starting structure
+create ShootingPoint
+run the ShootingPoint
+evaluate ShootingPoint
+ - if accept, create 3 new ShootingPoints
+ - if reject, move onto new ShootingPoint
+ - if inconclusive, recycle ShootingPoint
+
+"""
 
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
@@ -63,10 +169,12 @@ def find_and_replace(line, substitutions):
 
 
 class ShootingPoint:
-    def __init__(self, name, input_file, topology_file=None,
+    def __init__(self, name, topology_file=None,
                  md_engine="AMBER"):
         self.name = name  # Name of shooting point
-        self.input_file = input_file  # Path to input file (e.g., `init.in`)
+        self.input_init = "init.in"
+        self.input_fwd = "fwd.in"
+        self.input_rev = "rev.in"
         self.topology_file = topology_file  # Path to topology file
         self.md_engine = md_engine
         self._input_file_dir = op.dirname(op.abspath(self.input_file))
@@ -78,7 +186,7 @@ class ShootingPoint:
         self.cv_values = None
         return
 
-    def run_forward(self, inputfile="fwd.in"):
+    def run_forward(self):
         """
         Function launches forward simulation based on provided MD input file
         and calls check_if_committed to evaluate if the run ends up in a basin
@@ -90,12 +198,12 @@ class ShootingPoint:
         """
         jobname = self.name + "_f"
         logfile = self.name + "_f.log"
-        run_MD(self.input_file, jobname, logfile, topology="system.prmtop",
+        run_MD(self.input_fwd, jobname, logfile, topology="system.prmtop",
                engine="AMBER")
         self.forward_commit = self.check_if_committed(logfile)
         return
 
-    def run_reverse(self, inputfile="rev.in"):
+    def run_reverse(self, inputfile):
         """
         Function launches reverse simulation based on provided MD input file
         and calls check_if_committed to evaluate if the run ends up in a basin
@@ -107,7 +215,7 @@ class ShootingPoint:
         """
         jobname = self.name + "_r"
         logfile = self.name + "_r.log"
-        run_MD(inputfile, jobname, logfile, topology="system.prmtop",
+        run_MD(self.input_rev, jobname, logfile, topology="system.prmtop",
                engine="AMBER")
         self.reverse_commit = self.check_if_committed(logfile)
         return
@@ -134,7 +242,7 @@ class ShootingPoint:
                 status = int(line.split()[-1].rstrip())
         return status
 
-    def generate_new_shooting_points(self, deltaT, tag,
+    def generate_new_shooting_points(self, deltaT, direction,
                                      topology="system.prmtop",
                                      cpptrajskel="cpptraj_skel.in",
                                      cpptrajin="cpptraj.in"):
@@ -150,7 +258,7 @@ class ShootingPoint:
         deltaT : str
             Frames away from the original shooting point to create new
             restart file
-        tag : str
+        direction : str
             Identifier taged on to filename to track where the new shooting
             point is created from
         topology : str
@@ -159,9 +267,19 @@ class ShootingPoint:
             Skeleton for cpptraj input file
         cpptrajin : str
             Will write to and treat this as the cpptraj input file
-        """
 
-        trajectory = self.name + ".nc"
+         Returns
+        ----------
+        outfile: str
+            Returns a strig of the restart file created from cpptraj
+        """
+        if direction == 'fwd': 
+            name = self.name + "_f"
+            tag = "_f"
+        elif direction == 'rev':
+            name = self.name + "_r"
+            tag = "_r"
+        trajectory = name + ".nc"
         outfile = self.name + tag + ".rst7"
 
         topology_text = "PRMTOP"
@@ -183,9 +301,10 @@ class ShootingPoint:
         commands = ["cpptraj", "-i", cpptrajin]
         subprocess.run(commands)
 
-    def generate_velocity(self, initfile="init.in", logfile=None,
-                          topology="system.prmtop", engine="AMBER",
-                          solvated=False):
+        return outfile 
+
+    def generate_velocity(self, logfile=None, topology="system.prmtop",
+                          engine="AMBER", solvated=False):
         """
         Function takes shooting point and generates velocities by running MD
         for 1 step with a very small timestep. It then generates the starting
@@ -193,8 +312,6 @@ class ShootingPoint:
 
         Parameters
         ----------
-        initfile : str
-            Input file, should contain params to run 1 MD step for 0.0001 fs
         logfile : str
             Name of output file
         topology : str
@@ -209,7 +326,7 @@ class ShootingPoint:
         fwd = self.name + "_f.rst7"
         rev = self.name + "_r.rst7"
         # Run short MD simulation to get self.name_init.rst7 file
-        run_MD(initfile, initname, logfile, topology, engine)
+        run_MD(self.input_init, initname, logfile, topology, engine)
 
         init = initname + ".rst7"
         with open(init, 'r') as init_file:
