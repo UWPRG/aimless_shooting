@@ -19,6 +19,9 @@ class AimlessShooting:
     def __init__(self, starting_points):
         self.starting_points = starting_points
         return
+
+    def restart_inconclusive(self):
+        return
     pass
 
 
