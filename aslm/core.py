@@ -8,6 +8,7 @@ import numpy as np
 from .utils import log_run
 from .utils import log_header
 
+
 class AimlessShooting:
     """Runs the aimless shooting algorithm with a pool of starting points.
 
@@ -29,8 +30,7 @@ class AimlessShooting:
 
     def start(self):
         # *** Initialize log file (place header with CV names).
-        
-        # *** Generate a list containing files in guesses? Handles degeneracy? 
+        # *** Generate a list containing files in guesses? Handles degeneracy?
 
         while self.num_accepts < self.accepts_goal:
             # Initialize a shooting point
@@ -45,10 +45,13 @@ class AimlessShooting:
             # Check if forward simulation commits to basin
             if sp.forward_commit is None:
                 # Check to see how many times sp has attempted to commit
-                # if attempts < attempt_criteria:
-                    # Restart the shooting point with new velocities.
-                # else:
-                    # pass
+                if attempts < attempt_criteria:
+                    # Restart the shooting point with new velocities
+                    restart = self.initialize_shooting_point()  # **this line might break
+                    self.queue.append(restart)
+                else:
+                    # If there have been too many attempts on the same sp
+                    pass
             else:
                 # Continue to run the reverse simulation
                 sp.run_reverse()
@@ -67,15 +70,14 @@ class AimlessShooting:
                     sp.log(logfile)
                     self.num_accepts += 1
                     # Generate 3 new shooting points
-                    job1 =  sp.generate_new_shooting_points(self, deltaT, tag)
+                    job1 = sp.generate_new_shooting_points(deltaT, tag)
                     self.queue.append(job1)
-                    job2 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    job2 = sp.generate_new_shooting_points(deltaT, tag)
                     self.queue.append(job2)
-                    job3 = sp.generate_new_shooting_points(self, deltaT, tag)
+                    job3 = sp.generate_new_shooting_points(deltaT, tag)
                     self.queue.append(job3)
                 else:
-                    raise Exception("Don't know how to handle shooting point
-                                    result.")
+                    raise Exception("Unknown shooting point result.")
 
             # Increment the job counter.
             self.counter += 1
@@ -92,26 +94,15 @@ class AimlessShooting:
         else:
             directory = './guesses'
             print('current directory:', directory)
-            name = self.guesses[0].copy 
+            name = self.guesses[0].copy
             os.copy(directory+"/"+name, .)
             del self.guesses[0]
-        sp = ShootingPoint(name, topology_file="system.prmtop", md_engine="AMBER")
+        sp = ShootingPoint(name, topology_file="system.prmtop",
+                           md_engine="AMBER")
         return sp
 
 AS = AimlessShooting()
 AS.start()
-
-
-"""
-copy in starting structure
-create ShootingPoint
-run the ShootingPoint
-evaluate ShootingPoint
- - if accept, create 3 new ShootingPoints
- - if reject, move onto new ShootingPoint
- - if inconclusive, recycle ShootingPoint
-
-"""
 
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
@@ -273,7 +264,7 @@ class ShootingPoint:
         outfile: str
             Returns a strig of the restart file created from cpptraj
         """
-        if direction == 'fwd': 
+        if direction == 'fwd':
             name = self.name + "_f"
             tag = "_f"
         elif direction == 'rev':
@@ -301,7 +292,7 @@ class ShootingPoint:
         commands = ["cpptraj", "-i", cpptrajin]
         subprocess.run(commands)
 
-        return outfile 
+        return outfile
 
     def generate_velocity(self, logfile=None, topology="system.prmtop",
                           engine="AMBER", solvated=False):
