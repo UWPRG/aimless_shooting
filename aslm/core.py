@@ -50,7 +50,7 @@ class AimlessShooting:
             sp = self.initialize_shooting_point()
 
             # Generate velocities
-            sp.generate_velocities()
+            sp.generate_velocity()
 
             # Run forward simulation
             sp.run_forward()
@@ -109,18 +109,13 @@ class AimlessShooting:
             # self.counter += 1
         return
 
-    def initialize_shooting_point(self, name):
+    def initialize_shooting_point(self):
         """Creates new shooting point.
 
         This will always check the `self.queue` variable for new
         ShootingPoints. If `self.queue` is empty, it will instead move
         on to the next structure in `self.guesses`.
         
-        Parameters
-        ----------
-        name : str
-            Name of the shooting point.
-
         Returns
         -------
         sp : ShootingPoint
@@ -131,13 +126,13 @@ class AimlessShooting:
             directory = './queue'
             print('current directory:', directory)
             name = self.queue[0].copy()
-            os.copy(os.path.join(directory, name + '.rst7'), '.')
+            os.copy(op.join(directory, name + '.rst7'), '.')
             del self.queue[0]
         else:
             directory = './guesses'
             print('current directory:', directory)
             name = self.guesses[0].copy()
-            os.copy(os.path.join(directory, name + '.rst7'), '.')
+            os.copy(op.join(directory, name + '.rst7'), '.')
             del self.guesses[0]
         sp = ShootingPoint(name, input_init=name+'.rst7',
                            topology_file="system.prmtop",
@@ -145,7 +140,7 @@ class AimlessShooting:
         return sp
 
 
-def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
+def run_MD(inputfile, jobname, output=None, topology="system.prmtop",
            engine="AMBER"):
     """
     Python wrapper to run MD from commandline
@@ -158,7 +153,7 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
         name for all files associated with run
     topology : str
         name of topology file (e.g. for amber it would be  "system.prmtop")
-    logfile : str
+    output : str
         file to redirect run output too
     engine: stf
         engine being used for simulation, only takes AMBER inputs
@@ -172,7 +167,7 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
                 "-r", jobname + "_out.rst7",
                 "-inf", jobname + ".info"]
     subprocess.run(commands, capture_output=True,
-                   stdout=logfile, text=True)
+                   stdout=output, text=True)
 
 
 def find_and_replace(line, substitutions):
@@ -223,36 +218,43 @@ class ShootingPoint:
             Input file for MD production run
         """
         jobname = self.name + "_f"
-        logfile = self.name + "_f.log"
-        run_MD(self.input_fwd, jobname, logfile, topology="system.prmtop",
+        output = self.name + "_f.log"
+        run_MD(self.input_fwd, jobname, output, topology="system.prmtop",
                engine="AMBER")
-        self.forward_commit = self.check_if_committed(logfile)
+        self.forward_commit = self.check_if_committed(output)
+
+        # Copy plumed log file to new directory with unique name.
+        if op.exists('plumed_log'):
+            os.copy(output, op.join('plumed_log', output))
+        else:
+            raise Exception("There is no 'plumed_log' directory.")
         return
 
-    def run_reverse(self, inputfile):
+    def run_reverse(self):
         """
         Function launches reverse simulation based on provided MD input file
         and calls check_if_committed to evaluate if the run ends up in a basin
-
-        Parameters
-        ----------
-        inputfile: str
-            Input file for MD production run
         """
         jobname = self.name + "_r"
-        logfile = self.name + "_r.log"
-        run_MD(self.input_rev, jobname, logfile, topology="system.prmtop",
+        output = self.name + "_r.log"
+        run_MD(self.input_rev, jobname, output, topology="system.prmtop",
                engine="AMBER")
-        self.reverse_commit = self.check_if_committed(logfile)
+        self.reverse_commit = self.check_if_committed(output)
+
+        # Copy plumed log file to new directory with unique name.
+        if op.exists('plumed_log'):
+            os.copy(output, op.join('plumed_log', output))
+        else:
+            raise Exception("There is no 'plumed_log' directory.")
         return
 
-    def check_if_committed(self, logfile):
+    def check_if_committed(self, output):
         """
-        Function checks a logfile to see if a simulation commited to a basin
+        Function checks an output file to see if a simulation commited to a basin
 
         Parameters
         ----------
-        logfile : str
+        output : str
             Output of MD simulation (and MD_run) contains PLUMED output
 
          Returns
@@ -263,7 +265,7 @@ class ShootingPoint:
         """
         search_term = "COMMITED"
         status = None
-        for line in open(logfile, 'r'):
+        for line in open(output, 'r'):
             if re.search(search_term, line):
                 status = int(line.split()[-1].rstrip())
         return status
@@ -329,7 +331,7 @@ class ShootingPoint:
 
         return outfile
 
-    def generate_velocity(self, logfile=None, topology="system.prmtop",
+    def generate_velocity(self, output=None, topology="system.prmtop",
                           engine="AMBER", solvated=False):
         """
         Function takes shooting point and generates velocities by running MD
@@ -338,7 +340,7 @@ class ShootingPoint:
 
         Parameters
         ----------
-        logfile : str
+        output : str
             Name of output file
         topology : str
             Name of topology file
@@ -352,7 +354,7 @@ class ShootingPoint:
         fwd = self.name + "_f.rst7"
         rev = self.name + "_r.rst7"
         # Run short MD simulation to get self.name_init.rst7 file
-        run_MD(self.input_init, initname, logfile, topology, engine)
+        run_MD(self.input_init, initname, output, topology, engine)
 
         init = initname + ".rst7"
         with open(init, 'r') as init_file:
