@@ -4,7 +4,7 @@ import os.path as op
 import numpy as np
 from numpy.testing import assert_almost_equal
 
-from ..core import ShootingPoint, find_and_replace
+from ..core import AimlessShooting, ShootingPoint, find_and_replace
 
 
 def test_read_cv_values():
@@ -58,3 +58,8 @@ def test_log():
         assert float(test) == float(true)
     # assert line[1:6] == test_CVs
     assert line[-1] == "accepted"
+
+
+def test_generate_guesses():
+    assert 1 == 0, "Write unit test."
+    return
