@@ -190,12 +190,11 @@ def find_and_replace(line, substitutions):
 
 
 class ShootingPoint:
-    def __init__(self, name, input_init="init.in", topology_file=None,
+    def __init__(self, name, input_md="nvt.in", input_init="init.in", topology_file=None,
                  md_engine="AMBER"):
         self.name = name  # Name of shooting point
-        self.input_init = input_init
-        self.input_fwd = "fwd.in"
-        self.input_rev = "rev.in"
+        self.input_md = input_md  # Name of AMBER input file for running MD.
+        self.input_init = input_init  # Name of AMBER input file for velocity generation.
         self.topology_file = topology_file  # Path to topology file
         self.md_engine = md_engine
         # self._input_file_dir = op.dirname(op.abspath(self.input_file))
@@ -219,7 +218,7 @@ class ShootingPoint:
         """
         jobname = self.name + "_f"
         output = self.name + "_f.log"
-        run_MD(self.input_fwd, jobname, output, topology="system.prmtop",
+        run_MD(self.input_md, jobname, output, topology="system.prmtop",
                engine="AMBER")
         self.forward_commit = self.check_if_committed(output)
 
@@ -237,7 +236,7 @@ class ShootingPoint:
         """
         jobname = self.name + "_r"
         output = self.name + "_r.log"
-        run_MD(self.input_rev, jobname, output, topology="system.prmtop",
+        run_MD(self.input_md, jobname, output, topology="system.prmtop",
                engine="AMBER")
         self.reverse_commit = self.check_if_committed(output)
 
