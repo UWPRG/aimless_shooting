@@ -21,20 +21,29 @@ class AimlessShooting:
     logfile : str, optional
         Name of logfile.
     """
-    def __init__(self, starting_points, deltaT=10, logfile='log'):
+    def __init__(self, starting_points, accepts_gaol=100, deltaT=10,
+                 logfile='log', colvar_name='COLVAR'):
         self.starting_points = starting_points
         self.logfile = logfile
         self.queue = []
         self.guesses = []
         self.num_accepts = 0
-        self.accepts_goal = 100
-        self.counter = 0
+        self.accepts_goal = accepts_goal
         self.deltaT = deltaT
+        self.colvar_name = colvar_name
+        # self.counter = 0
+        return
+
+    def generate_guesses(self):
+        filenames = os.listdir('starting_structures')
+        guesses = []
+        for f in filenames:
+            self.guesses.append(op.splitext(f))
         return
 
     def start(self):
-        # *** Initialize log file (place header with CV names).
-        # *** Generate a list containing files in guesses? Handles degeneracy?
+        # TODO: if restarting, first check if guesses is already populated.
+        self.generate_guesses()
 
         while self.num_accepts < self.accepts_goal:
             # Initialize a shooting point
@@ -45,6 +54,13 @@ class AimlessShooting:
 
             # Run forward simulation
             sp.run_forward()
+
+            # Create log file and write header.
+            if op.exists(colvar_file):
+                log_header(colvar_file, filename=logfile)
+            else:
+                raise Exception("{} file does not exist ".format(colvar_file)
+                                + "and header cannot be extracted.")
 
             # Check if forward simulation commits to basin
             if sp.forward_commit is None:
