@@ -43,7 +43,7 @@ def test_check_if_commited():
 
 
 def test_log():
-    sp = ShootingPoint(name='test', input_file='.')
+    sp = ShootingPoint(name='test')
     sp.name = 'test'
     sp.cv_values = [1, 2, 3]
     sp.result = 'accepted'

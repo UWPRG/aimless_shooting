@@ -16,8 +16,12 @@ class AimlessShooting:
     ----------
     starting_points : str
         Location of a directory containing structures to start with.
+    deltaT : int, optional
+        Value of deltaT for creating new shooting points.
+    logfile : str, optional
+        Name of logfile.
     """
-    def __init__(self, starting_points, logfile='log'):
+    def __init__(self, starting_points, deltaT=10, logfile='log'):
         self.starting_points = starting_points
         self.logfile = logfile
         self.queue = []
@@ -25,7 +29,7 @@ class AimlessShooting:
         self.num_accepts = 0
         self.accepts_goal = 100
         self.counter = 0
-        self.delta_t = None
+        self.deltaT = deltaT
         return
 
     def start(self):
@@ -44,29 +48,35 @@ class AimlessShooting:
 
             # Check if forward simulation commits to basin
             if sp.forward_commit is None:
+                # Log results
+                sp.results = 'inconclusive'
+                sp.log(logfile)
+                continue
+
                 # Check to see how many times sp has attempted to commit
-                if attempts < attempt_criteria:
+                # if attempts < attempt_criteria:
                     # Restart the shooting point with new velocities
-                    restart = self.initialize_shooting_point()  # **this line might break
-                    self.queue.append(restart)
-                else:
+                    # restart = self.initialize_shooting_point()  # **this line might break
+                    # self.queue.append(restart)
+                # else:
                     # If there have been too many attempts on the same sp
-                    pass
+                    # pass
             else:
                 # Continue to run the reverse simulation
                 sp.run_reverse()
                 # If reverse simulation does not commit to a basin
                 if sp.reverse_commit is None:
-                    sp.result == 'inconclusive'
+                    sp.result = 'inconclusive'
                     sp.log(logfile)  # Log run
+                    continue
                     # initialize a new --- RES
                 # If reverse simulation commits to the same basin as forward
                 elif sp.reverse_commit == sp.forward_commit:
-                    sp.result == 'reject'
+                    sp.result = 'reject'
                     sp.log(logfile)
                     # launch new trajectory from queue
                 elif sp.reverse_commit != sp.forward_commit:
-                    sp.result == 'accept'
+                    sp.result = 'accept'
                     sp.log(logfile)
                     self.num_accepts += 1
                     # Generate 3 new shooting points
@@ -80,29 +90,43 @@ class AimlessShooting:
                     raise Exception("Unknown shooting point result.")
 
             # Increment the job counter.
-            self.counter += 1
+            # self.counter += 1
         return
 
-    def initialize_shooting_point(self, name,  directory):
+    def initialize_shooting_point(self, name):
+        """Creates new shooting point.
+
+        This will always check the `self.queue` variable for new
+        ShootingPoints. If `self.queue` is empty, it will instead move
+        on to the next structure in `self.guesses`.
+        
+        Parameters
+        ----------
+        name : str
+            Name of the shooting point.
+
+        Returns
+        -------
+        sp : ShootingPoint
+            New ShootingPoint object.
+        """
         # Check queue first.
         if self.queue:
             directory = './queue'
             print('current directory:', directory)
-            name = self.queue[0].copy
-            os.copy(directory+"/"+name, .)
+            name = self.queue[0].copy()
+            os.copy(os.path.join(directory, name + '.rst7'), '.')
             del self.queue[0]
         else:
             directory = './guesses'
             print('current directory:', directory)
-            name = self.guesses[0].copy
-            os.copy(directory+"/"+name, .)
+            name = self.guesses[0].copy()
+            os.copy(os.path.join(directory, name + '.rst7'), '.')
             del self.guesses[0]
-        sp = ShootingPoint(name, topology_file="system.prmtop",
+        sp = ShootingPoint(name, input_init=name+'.rst7',
+                           topology_file="system.prmtop",
                            md_engine="AMBER")
         return sp
-
-AS = AimlessShooting()
-AS.start()
 
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
@@ -155,16 +179,16 @@ def find_and_replace(line, substitutions):
 
 
 class ShootingPoint:
-    def __init__(self, name, topology_file=None,
+    def __init__(self, name, input_init="init.in", topology_file=None,
                  md_engine="AMBER"):
         self.name = name  # Name of shooting point
-        self.input_init = "init.in"
+        self.input_init = input_init
         self.input_fwd = "fwd.in"
         self.input_rev = "rev.in"
         self.topology_file = topology_file  # Path to topology file
         self.md_engine = md_engine
-        self._input_file_dir = op.dirname(op.abspath(self.input_file))
-        self._input_file_name = op.splitext(op.basename(self.input_file))[0]
+        # self._input_file_dir = op.dirname(op.abspath(self.input_file))
+        # self._input_file_name = op.splitext(op.basename(self.input_file))[0]
 
         self.forward_commit = None  # Status of forward simulation
         self.reverse_commit = None  # Status of reverse simulation
