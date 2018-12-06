@@ -39,7 +39,8 @@ def get_colvar_header(colvar_file):
     return header
 
 
-def log_header(colvar_header, filename='log'):
+def log_header(colvar_file, filename='log'):
+    colvar_header = get_colvar_header(colvar_file)
     with open(filename, 'a') as f:
         f.write("{} {} {}".format('NAME', ' '.join(colvar_header), 'RESULT'))
     return
