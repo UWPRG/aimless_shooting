@@ -1,6 +1,7 @@
 import os
 import os.path as op
 import re
+import shutil
 import subprocess
 
 import numpy as np
@@ -21,7 +22,7 @@ class AimlessShooting:
     logfile : str, optional
         Name of logfile.
     """
-    def __init__(self, starting_points, accepts_gaol=100, deltaT=10,
+    def __init__(self, starting_points, accepts_goal=100, deltaT=10,
                  logfile='log', colvar_name='COLVAR'):
         self.starting_points = starting_points
         self.logfile = logfile
@@ -36,9 +37,8 @@ class AimlessShooting:
 
     def generate_guesses(self):
         filenames = os.listdir('starting_structures')
-        guesses = []
         for f in filenames:
-            self.guesses.append(op.splitext(f))
+            self.guesses.append(op.splitext(f)[0])
         return
 
     def start(self):
@@ -125,14 +125,16 @@ class AimlessShooting:
         if self.queue:
             directory = './queue'
             print('current directory:', directory)
-            name = self.queue[0].copy()
-            os.copy(op.join(directory, name + '.rst7'), '.')
+            name = self.queue[0]
+            filename = name + '.rst7'
+            shutil.copyfile(op.join(directory, filename), filename)
             del self.queue[0]
         else:
             directory = './guesses'
             print('current directory:', directory)
-            name = self.guesses[0].copy()
-            os.copy(op.join(directory, name + '.rst7'), '.')
+            name = self.guesses[0]
+            filename = name + '.rst7'
+            shutil.copyfile(op.join(directory, filename), filename)
             del self.guesses[0]
         sp = ShootingPoint(name, input_init=name+'.rst7',
                            topology_file="system.prmtop",
