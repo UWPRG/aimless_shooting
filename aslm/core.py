@@ -101,9 +101,6 @@ class AimlessShooting:
                            md_engine="AMBER")
         return sp
 
-AS = AimlessShooting()
-AS.start()
-
 
 def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
            engine="AMBER"):
