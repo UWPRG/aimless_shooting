@@ -132,8 +132,13 @@ def run_MD(inputfile, jobname, logfile=None, topology="system.prmtop",
         logf = open(logfile, 'w')
     else:
         logf = None
+
     subprocess.run(commands, stdout=logfile)
-    logf.close()
+
+    if logfile:
+        logf.close()
+    else:
+        pass
     return
 
 
