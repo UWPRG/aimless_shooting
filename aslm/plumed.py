@@ -12,7 +12,24 @@ def gen_plumed_file(atoms, plumed_file='plumed.dat',
         for each set of distances
 
     """
-    # create CVs 
+    # create CVs
+    
+    # distances between molecules 
+
+    # CNs / think about generating nearest neighbors lists 
+
+    # difference of distances between CVs 
+    
+    # angles 
+    
+    # dihedrals 
+    
+    # cremer pople
+    
+    # Hill-Reilly?
+    
+    # Berces et. al36 parameter τ1
+
 
     # define basin 
 
