@@ -14,8 +14,9 @@ def log_run(sp_name, CVs, result, filename='log'):
     filename : str, optional
         Name of log file."""
 
+    CVs = [str(n) for n in CVs]
     with open(filename, 'a') as f:
-        line = "{} {} {}".format(sp_name, CVs, result)
+        line = "{} {} {}".format(sp_name, ' '.join(CVs), result)
         f.write(line)
     return
 
