@@ -13,7 +13,6 @@ def gen_plumed_file(atoms, plumed_file='plumed.dat',
 
     """
     # create CVs
-    Try and push these changes to github
     # distances between molecules 
 
     # CNs / think about generating nearest neighbors lists 
