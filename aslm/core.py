@@ -3,11 +3,14 @@ import os.path as op
 import re
 import shutil
 import subprocess
+import sys
 
 import numpy as np
 
 from .utils import log_run
 from .utils import log_header
+
+# Make sure to copy the original shooting point for the "_0" instance!!
 
 
 class AimlessShooting:
@@ -36,12 +39,25 @@ class AimlessShooting:
         return
 
     def generate_guesses(self):
-        filenames = os.listdir('starting_structures')
+        filenames = os.listdir(self.starting_points)
         for f in filenames:
-            self.guesses.append(op.splitext(f)[0])
+            name = op.splitext(f)[0]
+            self.guesses.append(name)
+            shutil.copyfile(op.join(self.starting_points, f),
+                            op.join('guesses', f))
         return
 
     def start(self):
+        # TODO: write a function to clean old files and COLVARs
+
+        # Generate all necessary folders if they do not already exist.
+        required_directories = ['guesses', 'queue', 'plumed_log']
+        for directory in required_directories:
+            if op.exists(directory):
+                pass
+            else:
+                os.mkdir(directory)
+
         # TODO: if restarting, first check if guesses is already populated.
         self.generate_guesses()
 
@@ -56,17 +72,21 @@ class AimlessShooting:
             sp.run_forward()
 
             # Create log file and write header.
-            if op.exists(colvar_file):
-                log_header(colvar_file, filename=logfile)
+            if not op.exists(self.logfile):
+                if op.exists(self.colvar_name):
+                    log_header(self.colvar_name, filename=self.logfile)
+                else:
+                    raise Exception("{} file does not exist "
+                                    .format(self.colvar_name)
+                                    + "and header cannot be extracted.")
             else:
-                raise Exception("{} file does not exist ".format(colvar_file)
-                                + "and header cannot be extracted.")
+                pass
 
             # Check if forward simulation commits to basin
             if sp.forward_commit is None:
                 # Log results
                 sp.results = 'inconclusive'
-                sp.log(logfile)
+                sp.log(self.logfile)
                 continue
 
                 # Check to see how many times sp has attempted to commit
@@ -83,25 +103,33 @@ class AimlessShooting:
                 # If reverse simulation does not commit to a basin
                 if sp.reverse_commit is None:
                     sp.result = 'inconclusive'
-                    sp.log(logfile)  # Log run
+                    sp.log(self.logfile)  # Log run
                     continue
                     # initialize a new --- RES
                 # If reverse simulation commits to the same basin as forward
                 elif sp.reverse_commit == sp.forward_commit:
                     sp.result = 'reject'
-                    sp.log(logfile)
+                    sp.log(self.logfile)
                     # launch new trajectory from queue
                 elif sp.reverse_commit != sp.forward_commit:
                     sp.result = 'accept'
-                    sp.log(logfile)
+                    sp.log(self.logfile)
                     self.num_accepts += 1
                     # Generate 3 new shooting points
-                    job1 = sp.generate_new_shooting_points(deltaT, tag)
+                    job1 = sp.generate_new_shooting_points(self.deltaT, 'fwd')
                     self.queue.append(job1)
-                    job2 = sp.generate_new_shooting_points(deltaT, tag)
+                    job1name = job1 + '.rst7'
+                    shutil.copyfile(job1name, op.join('queue', job1name))
+
+                    job2 = sp.generate_new_shooting_points(self.deltaT, 'rev')
                     self.queue.append(job2)
-                    job3 = sp.generate_new_shooting_points(deltaT, tag)
+                    job2name = job2 + '.rst7'
+                    shutil.copyfile(job2name, op.join('queue', job2name))
+
+                    job3 = sp.generate_new_shooting_points(self.deltaT, '0')
                     self.queue.append(job3)
+                    job3name = job3 + '.rst7'
+                    shutil.copyfile(job3name, op.join('queue', job3name))
                 else:
                     raise Exception("Unknown shooting point result.")
 
@@ -127,16 +155,23 @@ class AimlessShooting:
             print('current directory:', directory)
             name = self.queue[0]
             filename = name + '.rst7'
-            shutil.copyfile(op.join(directory, filename), filename)
+            target = name + '_init.rst7'
+            shutil.copyfile(op.join(directory, filename), target)
             del self.queue[0]
-        else:
+        elif self.guesses:
             directory = './guesses'
             print('current directory:', directory)
             name = self.guesses[0]
             filename = name + '.rst7'
-            shutil.copyfile(op.join(directory, filename), filename)
+            target = name + '_init.rst7'
+            shutil.copyfile(op.join(directory, filename), target)
             del self.guesses[0]
-        sp = ShootingPoint(name, input_init=name+'.rst7',
+        else:
+            with open(self.logfile, 'a') as f:
+                f.write("No more guesses available. Exiting.")
+            sys.exit()
+
+        sp = ShootingPoint(name,
                            topology_file="system.prmtop",
                            md_engine="AMBER")
         return sp
@@ -160,7 +195,7 @@ def run_MD(inputfile, jobname, output=None, topology="system.prmtop",
     engine: stf
         engine being used for simulation, only takes AMBER inputs
     """
-    commands = ["sander", "-O",
+    commands = ["sander.MPI", "-O",
                 "-i", inputfile,
                 "-o", jobname + ".out",
                 "-x", jobname + ".nc",
@@ -168,8 +203,17 @@ def run_MD(inputfile, jobname, output=None, topology="system.prmtop",
                 "-c", jobname + ".rst7",
                 "-r", jobname + "_out.rst7",
                 "-inf", jobname + ".info"]
-    subprocess.run(commands, capture_output=True,
-                   stdout=output, text=True)
+    if output:
+        logf = open(output, 'w')
+    else:
+        logf = None
+
+    subprocess.run(commands, stdout=logf)
+
+    if output:
+        logf.close()
+    else:
+        pass
 
 
 def find_and_replace(line, substitutions):
@@ -226,7 +270,7 @@ class ShootingPoint:
 
         # Copy plumed log file to new directory with unique name.
         if op.exists('plumed_log'):
-            os.copy(output, op.join('plumed_log', output))
+            shutil.copyfile(output, op.join('plumed_log', output))
         else:
             raise Exception("There is no 'plumed_log' directory.")
         return
@@ -244,7 +288,7 @@ class ShootingPoint:
 
         # Copy plumed log file to new directory with unique name.
         if op.exists('plumed_log'):
-            os.copy(output, op.join('plumed_log', output))
+            shutil.copyfile(output, op.join('plumed_log', output))
         else:
             raise Exception("There is no 'plumed_log' directory.")
         return
@@ -308,13 +352,23 @@ class ShootingPoint:
         elif direction == 'rev':
             name = self.name + "_r"
             tag = "_r"
+        elif direction == '0':
+            # Make sure to copy the original shooting point for this instance!!
+            name = self.name + "_0"
+            tag = "_0"
         trajectory = name + ".nc"
         outfile = self.name + tag + ".rst7"
+        outfile_jobname = self.name + tag
 
         topology_text = "PRMTOP"
         trajectory_text = "TRAJECTORY"
         deltaT_text = "FRAME"
         outfile_text = "OUTFILE"
+
+        if isinstance(deltaT, str):
+            pass
+        else:
+            deltaT = str(deltaT)
 
         substitutions = {topology_text: topology, trajectory_text: trajectory,
                          deltaT_text: deltaT, outfile_text: outfile}
@@ -330,7 +384,7 @@ class ShootingPoint:
         commands = ["cpptraj", "-i", cpptrajin]
         subprocess.run(commands)
 
-        return outfile
+        return outfile_jobname
 
     def generate_velocity(self, output=None, topology="system.prmtop",
                           engine="AMBER", solvated=False):
@@ -357,7 +411,7 @@ class ShootingPoint:
         # Run short MD simulation to get self.name_init.rst7 file
         run_MD(self.input_init, initname, output, topology, engine)
 
-        init = initname + ".rst7"
+        init = initname + "_out.rst7"
         with open(init, 'r') as init_file:
             init_lines = [line.rstrip('\n') for line in init_file]
         # Write forward restart file (same as init restart files)
