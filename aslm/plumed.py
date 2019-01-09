@@ -97,6 +97,3 @@ def gen_plumed_file(atoms,basins,basin_CV,limit,print_stride='1',plumed_file='pl
 # cremer pople
 # Hill-Reilly?
 # Berces et. al36 parameter 1
-
-# Finish scripting COMMITTOR    
-# define basin 
