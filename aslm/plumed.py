@@ -1,8 +1,9 @@
 from itertools import combinations
 
 
-def gen_plumed_file(atoms, basins, basin_CV, limit, print_stride='1',
-                    plumed_file='plumed.dat', plumed_outfile='COLVAR'):
+def gen_plumed_file(atoms, basins, basin_CV, limit, periodic='NO',
+                    print_stride='1', plumed_file='plumed.dat', 
+                    plumed_outfile='COLVAR'):
     """
     Function will take a list of atoms, COMS, and groups and create a plumed
     file containing distances, differences of distances, angles, dihedrals,
@@ -44,27 +45,40 @@ def gen_plumed_file(atoms, basins, basin_CV, limit, print_stride='1',
     f = open(plumed_file, "w+")  # Open file for writing
     f.write('# vim:ft=plumed\n')
     if len(atoms) >= 4:
-        for k in quads:
-            f.write('\n# TORSION \n')
-            f.write('t{}{}{}{}: TORSION ATOMS={},{},{},{}\n'.format(k[0], k[1],
-                    k[2], k[3], k[0], k[1], k[2], k[3]))
+        f.write('\n# TORSION \n')
+        for k_counter,k in enumerate(quads):
+            f.write('t{}: TORSION ATOMS={},{},{},{}\n'.format(k_counter,
+                    k[0], k[1], k[2], k[3]))
     else:
         print("Must include at least 4 atoms to calculate torsion")
     if len(atoms) >= 3:
         f.write('\n# ANGLES \n')
-        for j in triples:
-            f.write('a{}{}{}: ANGLE ATOMS={},{},{}\n'.format(j[0], j[1], j[2],
+        for j_counter,j in enumerate(triples):
+            f.write('a{}: ANGLE ATOMS={},{},{}\n'.format(j_counter,
                     j[0], j[1], j[2]))
     else:
         print("Must include at least 3 atoms to calculate angles")
+    
+    pair_list=[] # List of all the distance CVs
     if len(atoms) >= 2:
         f.write('\n# DISTANCES \n')
-        for i in pairs:
-            f.write('d{}{}: DISTANCE ATOMS={},{}\n'.format(i[0], i[1], i[0],
-                    i[1]))
+        for i_counter,i in enumerate(pairs):
+            f.write('d{}: DISTANCE ATOMS={},{}\n'.format(i_counter,
+                    i[0], i[1]))
+            pair_list.append(i_counter)
+
+    if len(pair_list) >= 2:  # Check list of pairs for at least two pairs 
+        pair_combos = list(combinations(pair_list,2))
+        f.write('\n# DIFFERENCE OF DISTANCES \n')
+        for pair_combo_counter, pair_combo in enumerate(pair_combos):    
+            f.write('dd{}: COMBINE ARG=d{},d{} COEFFICIENTS=1.0,-1.0 ' \
+                    'PARAMETERS=0.0,0.0 POWERS=1.0,1.0 PERIODIC={}\n'.format(
+                    pair_combo_counter, pair_combo[0], pair_combo[1], periodic))
     else:
-        print("Must include at least two atoms in the atom namelist to
-              generate distances")
+        print("Must include at least two atoms in the atom namelist to " \
+              "generate distance CVs")
+
+    # 
 
     f.write('\nCOMMITTOR ...\n')
     if basins == 2:
@@ -84,11 +98,11 @@ def gen_plumed_file(atoms, basins, basin_CV, limit, print_stride='1',
         f.write('BASIN_LL3={},{}\n'.format(limit[2][0], limit[2][1]))
         f.write('BASIN_UL3={},{}\n'.format(limit[2][2], limit[2][3]))
     if len(basin_CV) >= 4:
-        print("Use of more than 3 CVs to monitor COMMITTOR is not currently
-              supported you may manually edit the plumed file")
+        print("Use of more than 3 CVs to monitor COMMITTOR is not currently " \
+              "supported you may manually edit the plumed file")
     if len(basin_CV) < 2:
-        print("You must provide at least two CVs to monitor if the shooting
-              point has committed to a basin")
+        print("You must provide at least two CVs to monitor if the shooting " \
+              "point has committed to a basin")
     f.write('... COMMITTOR\n')
 
     f.write('\nPRINT STRIDE={} ARG=* FILE={}'.format(print_stride,
@@ -98,7 +112,7 @@ def gen_plumed_file(atoms, basins, basin_CV, limit, print_stride='1',
 
 # More CVs to add
 
-# difference of distances between CVs
+# coordination numbers
 # cremer pople
 # Hill-Reilly?
 # Berces et. al36 parameter 1
