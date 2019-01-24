@@ -110,6 +110,55 @@ class GeneratePlumed:
             print("Must include at least two atoms in the atom namelist to " \
                   "generate distance CVs")
 
+    def add_group(self, group_name, atoms, inclusive):
+        """
+        Parameters
+        ----------
+        group_name: str
+            Name of the list of atoms you provide
+            Ex: 'wat' 
+        atoms: list of int
+            Atoms you would like to include in the group 
+            Ex: [1,100]
+        inclusive: bool
+            Is the list of str inclusive of all the numbers from the
+            first to last 
+            Ex: 
+                inclusive=True will return 1-100
+                inclusive=False will return 1,100
+        """
+
+        #FINISH####### 
+
+
+    def add_coordination(self, group_a, group_b, r_0, nl_cuttoff, 
+                         nlist=False, nl_stride=self.print_stride):
+        """
+        Parameters
+        ----------
+        groupa: str
+            List of atoms used for group A, easiest to define a group with
+            add_group() then use the group_name as group_a
+        groupb: str
+        r_0 : int 
+            Parameter of switching function 
+            (see https://plumed.github.io/doc-v2.4/user-doc/html/_c_o_o_r_d_i_n_a_t_i_o_n.html)
+        nl_cuttoff : int
+            Cuttoff for the neighborlist 
+        nlist : bool
+            Option to turn on neighbor lists (will speed up calculation) 
+        nl_stride : 
+        
+        Ex: 
+            # first define a group of atoms 
+            add_group(group1, atoms=[1,100], True)
+            add_group(group2, atoms=[5,8,10], False)
+            # next add coordination of that group
+            add_coordination(group1, group2, 0.3, 0.6, 500)
+
+        """
+        # FINISH 
+        # FINISH
 
     def add_committor(self, basins, basin_CV, limit):
         """
@@ -160,7 +209,6 @@ class GeneratePlumed:
                   "point has committed to a basin")
         self.string+='... COMMITTOR\n'
 
-    #def add_coordination_numbers():
 
     def write_file(self):
         f = open(self.plumed_file, "w+")
@@ -170,6 +218,8 @@ class GeneratePlumed:
                 self.colvar))
         f.close()
 
+
+# Add NOPBC option 
 
 # More CVs to add
 
