@@ -1,7 +1,5 @@
 from itertools import combinations
 
-# Change to class 
-
 class GeneratePlumed:
     """
     Class instantiates a plumed file and has functionality to add candidate 
@@ -71,7 +69,7 @@ class GeneratePlumed:
             print("Must include at least 3 atoms to calculate angles")
 
 
-    def add_distances(self, atoms,diff_of_dist=True, periodic='NO'):
+    def add_distances(self, atoms,diff_of_dist=True, periodic='NOPBC'):
         """Adds distances and difference of distances for every combination
         of atoms given a set of atoms
 
@@ -98,41 +96,43 @@ class GeneratePlumed:
                 self.string+='d{}: DISTANCE ATOMS={},{}\n'.format(i_counter,
                         i[0], i[1])
                 pair_list.append(i_counter)
-            
+        else:
+            print("Must include at least two atoms in the atom namelist to \
+                  generate distance CVs")
+        
+        # Difference of distances
         if len(pair_list) >= 2 and diff_of_dist==True:  # Check list of pairs for at least two pairs 
             pair_combos = list(combinations(pair_list,2))
             self.string+='\n# DIFFERENCE OF DISTANCES \n'
             for pair_combo_counter, pair_combo in enumerate(pair_combos):    
                 self.string+='dd{}: COMBINE ARG=d{},d{} COEFFICIENTS=1.0,-1.0 ' \
-                        'PARAMETERS=0.0,0.0 POWERS=1.0,1.0 PERIODIC={}\n'.format(
+                        'PARAMETERS=0.0,0.0 POWERS=1.0,1.0 {}\n'.format(
                         pair_combo_counter, pair_combo[0], pair_combo[1], periodic)
         else:
-            print("Must include at least two atoms in the atom namelist to " \
-                  "generate distance CVs")
+            print("Difference of distance CV not generated, requires at least 2 distance CVs")
 
-    def add_group(self, group_name, atoms, inclusive):
+    def add_group(self, group_name, atoms):
         """
         Parameters
         ----------
+        Define groups of atoms
         group_name: str
             Name of the list of atoms you provide
             Ex: 'wat' 
-        atoms: list of int
+        atoms: list of str
             Atoms you would like to include in the group 
-            Ex: [1,100]
-        inclusive: bool
-            Is the list of str inclusive of all the numbers from the
-            first to last 
-            Ex: 
-                inclusive=True will return 1-100
-                inclusive=False will return 1,100
+            Ex: ['1,5,6,9','1-100']
         """
-
-        #FINISH####### 
-
-
-    def add_coordination(self, group_a, group_b, r_0, nl_cuttoff, 
-                         nlist=False, nl_stride=self.print_stride):
+        if len(group_name) >= 1:
+            self.string+='\n#GROUPS OF ATOMS \n'
+        if len(group_name) == len(atoms):
+            for group_counter, group in enumerate(group_name):
+                self.string+='{}: GROUP ATOMS={}\n'.format(group, atoms[group_counter])
+        else: 
+            print ("Length of group names must equal length of atoms")
+            
+    def add_coordination(self, group_a, group_b, r_0, nl_cutoff=[1.0], nlist=True,
+                         nn=6, mm=0, d_0=0.0):
         """
         Parameters
         ----------
@@ -143,12 +143,10 @@ class GeneratePlumed:
         r_0 : int 
             Parameter of switching function 
             (see https://plumed.github.io/doc-v2.4/user-doc/html/_c_o_o_r_d_i_n_a_t_i_o_n.html)
-        nl_cuttoff : int
-            Cuttoff for the neighborlist 
+        nl_cutoff : int
+            Cuttoff for the neighborlist
         nlist : bool
-            Option to turn on neighbor lists (will speed up calculation) 
-        nl_stride : 
-        
+            Option to turn on neighbor lists (will speed up calculation, should be on) 
         Ex: 
             # first define a group of atoms 
             add_group(group1, atoms=[1,100], True)
@@ -157,8 +155,25 @@ class GeneratePlumed:
             add_coordination(group1, group2, 0.3, 0.6, 500)
 
         """
-        # FINISH 
-        # FINISH
+
+        nl_stride = self.print_stride
+
+        if len(group_a) == len(group_b) == len(r_0) == len(nl_cutoff):
+            self.string+='\n#COORDINATION \n'
+            for a_counter, a in enumerate(group_a):
+                self.string+='c{}: COORDINATION GROUPA={} GROUPB={} R_0={} NN={} MM={} D_0={}'.format(
+                        a_counter, a, group_b[a_counter], r_0[a_counter],
+                        nn, mm, d_0)
+                if nlist == False:
+                    self.string+='\n'
+                elif nlist == True:
+                    self.string+='NLIST NL_CUTOFF={} NL_STRIDE={}\n'.format(nl_cutoff[a_counter],
+                            nl_stride)
+                else:
+                    print ('nlist must be a bool')
+        else:
+            print ("group_a, group_b, r_0, nl_cutoff lists must all be the same length")
+
 
     def add_committor(self, basins, basin_CV, limit):
         """
