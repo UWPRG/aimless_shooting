@@ -9,8 +9,6 @@ class GeneratePlumed:
     ----------
     print_stride : str
         Print stride to COLVAR file
-    plumed_file : str
-        Name of file to output CV information too. (Input to PLUMED)
     colvar : str
         Name of file containing CV values over time (Output of PLUMED)
 
@@ -19,7 +17,6 @@ class GeneratePlumed:
     def __init__(self, print_stride='1', plumed_file='plumed.dat', 
                  colvar='COLVAR'):
         self.print_stride='1'
-        self.plumed_file='plumed.dat'
         self.colvar='COLVAR'
         self.string=''
         return
@@ -215,6 +212,35 @@ class GeneratePlumed:
         else:
             print ("group_a, group_b, r_0, nl_cutoff lists must all be the same length")
 
+    def add_puckering(self, atoms):
+        """
+        Given a list of 5 or 6 atoms, or a group_name, will create a cv for puckering ring
+
+        Parameters
+        ----------
+        atoms: list of int
+            For a 5-member ring, the five atoms should be provided as:
+            [C4,O4,C1,C2,C3]
+        """
+
+        self.string+='\n#PUCKERING \n'
+        for atom_list_counter, atom_list in enumerate(atoms):
+            if len(atom_list) == 1:
+                if isinstance(atom_list[0],str):
+                    self.string+='puck{}: PUCKERING ATOMS={}\n'.format(
+                        atom_list_counter, atom_list[0])
+                else:
+                    print("Provide a list of 5 or 6 atoms, or a group name")
+            elif len(atom_list) == 5:
+                self.string+='puck{}: PUCKERING ATOMS={},{},{},{},{}\n'.format(
+                        atom_list_counter,atom_list[0],atom_list[1],atom_list[2],
+                        atom_list[3],atom_list[4])
+            elif len(atom_list) == 6:
+                self.string+='puck{}: PUCKERING ATOMS={},{},{},{},{},{}\n'.format(
+                        atom_list_counter,atom_list[0],atom_list[1],atom_list[2],
+                        atom_list[3],atom_list[4], atom_list[5])
+            else:
+                print("Atom list must contain 5 or 6 atoms")
 
     def add_committor(self, basins, basin_CV, limit):
         """
@@ -231,6 +257,8 @@ class GeneratePlumed:
             Array of integers that correspond to the lower and upper limits for
             each basin. Must be enetered in a specific format
         
+        Example for 2 basins and 1CV:
+            [[LL1,UL1],[LL2,UL2]]
         Example for 2 basins and 2CVs:
             [[LL1_x,LL1_y,UL1_x,UL1_y],[LL2_x,LL2_y,UL2_x,UL2_y]]
         * where x and y correspond to those values for each supplied argument
@@ -286,20 +314,20 @@ class GeneratePlumed:
         self.string+='... COMMITTOR\n'
 
 
-    def write_file(self):
-        f = open(self.plumed_file, "w+")
+    def write_file(self, plumed_file):
+        """
+        Takes all the information built in self.string and outputs to file
+        in plumed format 
+        
+        Parameters
+        ----------
+        plumed_file : str
+            Name of file to output CV information too. (Input to PLUMED)
+        """
+        f = open(plumed_file, "w+")
         f.write('# vim:ft=plumed\n')
         f.write(self.string)
         f.write('\nPRINT STRIDE={} ARG=* FILE={}'.format(self.print_stride,
                 self.colvar))
         f.close()
 
-
-# Add NOPBC option 
-
-# More CVs to add
-
-# coordination numbers -> require the input of a pdb? and grep or use newer version of plumed
-# cremer pople
-# Hill-Reilly?
-# Berces et. al36 parameter 1
