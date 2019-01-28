@@ -69,7 +69,7 @@ class GeneratePlumed:
             print("Must include at least 3 atoms to calculate angles")
 
 
-    def add_distances(self, atoms,diff_of_dist=True, periodic='NOPBC'):
+    def add_distances(self, atoms,diff_of_dist=True, periodic=False, components=False):
         """Adds distances and difference of distances for every combination
         of atoms given a set of atoms
 
@@ -81,9 +81,10 @@ class GeneratePlumed:
         diff_of_dist : bool 
             If set to True this function Will also calculate the difference 
             of distances, useful for likelihood maximization 
-        periodic : str
-            Are the CVs periodic for a difference of CVs, should always be no 
-            for distnaces
+        periodic : bool
+            Are the CVs periodic for a difference of CVs
+        components: bool
+            Option to calculate scaled compondents of the distance CV
 
         Example: x.add_distances=([1,2,3,4])
         """
@@ -93,8 +94,20 @@ class GeneratePlumed:
         if len(atoms) >= 2:
             self.string+='\n# DISTANCES \n'
             for i_counter,i in enumerate(pairs):
-                self.string+='d{}: DISTANCE ATOMS={},{}\n'.format(i_counter,
+                self.string+='d{}: DISTANCE ATOMS={},{}'.format(i_counter,
                         i[0], i[1])
+                if periodic == False:
+                    self.string+='NOPBC'
+                elif periodic == True: 
+                    print("Periodic distances not supported in this release")
+                else: 
+                    print("must supply a bool for periodic")
+                if components == False:
+                    self.string+='\n'
+                elif components == True:
+                    print("Components not supported in this release")
+                else:
+                    print("must supply a bool for components")
                 pair_list.append(i_counter)
         else:
             print("Must include at least two atoms in the atom namelist to \
