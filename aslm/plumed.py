@@ -25,7 +25,7 @@ class GeneratePlumed:
         return
 
     
-    def add_torsion(self, atoms):
+    def add_torsion(self, atoms, periodic=False):
         """Adds every combination of torsion CVs given a set of atoms
         
         Parameters
@@ -41,13 +41,21 @@ class GeneratePlumed:
         if len(atoms) >= 4:
             self.string+='\n# TORSION \n'
             for k_counter,k in enumerate(quads):
-                self.string+='t{}: TORSION ATOMS={},{},{},{}\n'.format(
+                self.string+='t{}: TORSION ATOMS={},{},{},{} '.format(
                         k_counter,k[0], k[1], k[2], k[3])
+                if periodic == False:
+                    self.string+='NOPBC\n'
+                elif periodic == True:
+                    self.string+='\n'
+                    print("Periodic distances not supported in this release")
+                else:
+                    self.string+='\n'
+                    print("must supply a bool for periodic")
         else:
             print("Must include at least 4 atoms to calculate torsion")
 
 
-    def add_angles(self, atoms):
+    def add_angles(self, atoms, periodic=False):
         """Adds every combination of angle CVs given a set of atoms
 
         Parameters
@@ -63,8 +71,16 @@ class GeneratePlumed:
         if len(atoms) >= 3:
             self.string+='\n# ANGLES \n'
             for j_counter,j in enumerate(triples):
-                self.string+='a{}: ANGLE ATOMS={},{},{}\n'.format(j_counter,
+                self.string+='a{}: ANGLE ATOMS={},{},{} '.format(j_counter,
                         j[0], j[1], j[2])
+                if periodic == False:
+                    self.string+='NOPBC\n'
+                elif periodic == True:
+                    self.string+='\n'
+                    print("Periodic distances not supported in this release")
+                else:
+                    self.string+='\n'
+                    print("must supply a bool for periodic")
         else:
             print("Must include at least 3 atoms to calculate angles")
 
@@ -94,7 +110,7 @@ class GeneratePlumed:
         if len(atoms) >= 2:
             self.string+='\n# DISTANCES \n'
             for i_counter,i in enumerate(pairs):
-                self.string+='d{}: DISTANCE ATOMS={},{}'.format(i_counter,
+                self.string+='d{}: DISTANCE ATOMS={},{} '.format(i_counter,
                         i[0], i[1])
                 if periodic == False:
                     self.string+='NOPBC'
@@ -105,8 +121,10 @@ class GeneratePlumed:
                 if components == False:
                     self.string+='\n'
                 elif components == True:
+                    self.string+='\n'
                     print("Components not supported in this release")
                 else:
+                    self.string+='\n'
                     print("must supply a bool for components")
                 pair_list.append(i_counter)
         else:
@@ -119,8 +137,18 @@ class GeneratePlumed:
             self.string+='\n# DIFFERENCE OF DISTANCES \n'
             for pair_combo_counter, pair_combo in enumerate(pair_combos):    
                 self.string+='dd{}: COMBINE ARG=d{},d{} COEFFICIENTS=1.0,-1.0 ' \
-                        'PARAMETERS=0.0,0.0 POWERS=1.0,1.0 {}\n'.format(
-                        pair_combo_counter, pair_combo[0], pair_combo[1], periodic)
+                        'PARAMETERS=0.0,0.0 POWERS=1.0,1.0 '.format(
+                        pair_combo_counter, pair_combo[0], pair_combo[1])
+                if periodic == False:
+                    self.string+='PERIODIC=NO\n'
+                elif periodic == True:
+                    self.string+='\n'
+                    print("Periodic distances not supported in this release")
+                else:
+                    self.string+='\n'
+                    print("must supply a bool for periodic")
+        elif len(pair_list) >= 2 and diff_of_dist==False:
+            print("Difference of distance CV not generated")
         else:
             print("Difference of distance CV not generated, requires at least 2 distance CVs")
 
@@ -174,7 +202,7 @@ class GeneratePlumed:
         if len(group_a) == len(group_b) == len(r_0) == len(nl_cutoff):
             self.string+='\n#COORDINATION \n'
             for a_counter, a in enumerate(group_a):
-                self.string+='c{}: COORDINATION GROUPA={} GROUPB={} R_0={} NN={} MM={} D_0={}'.format(
+                self.string+='c{}: COORDINATION GROUPA={} GROUPB={} R_0={} NN={} MM={} D_0={} '.format(
                         a_counter, a, group_b[a_counter], r_0[a_counter],
                         nn, mm, d_0)
                 if nlist == False:
@@ -188,10 +216,12 @@ class GeneratePlumed:
             print ("group_a, group_b, r_0, nl_cutoff lists must all be the same length")
 
 
-    def add_committor(self, basins, basin_CV, limit):
+    def add_committor(self, ops_monitored, basins, basin_CV, limit):
         """
         Parameters
         ----------
+        ops_monitored : int 
+            Number of CVs used to monitor basins
         basins : int
             Number of basins used to monitor COMMITTOR
 
@@ -204,7 +234,7 @@ class GeneratePlumed:
             Array of integers that correspond to the lower and upper limits for
             each basin. Must be enetered in a specific format
         
-        Example for 2 basins:
+        Example for 2 basins and 2CVs:
             [[LL1_x,LL1_y,UL1_x,UL1_y],[LL2_x,LL2_y,UL2_x,UL2_y]]
         * where x and y correspond to those values for each supplied argument
         * 1 and 2 correspond to each basin
@@ -216,19 +246,37 @@ class GeneratePlumed:
         if basins == 2:
             self.string+='ARG={},{}\n'.format(basin_CV[0], basin_CV[1])
             self.string+='STRIDE={}\n'.format(self.print_stride)
-            self.string+='BASIN_LL1={},{}\n'.format(limit[0][0], limit[0][1])
-            self.string+='BASIN_UL1={},{}\n'.format(limit[0][2], limit[0][3])
-            self.string+='BASIN_LL2={},{}\n'.format(limit[1][0], limit[1][1])
-            self.string+='BASIN_UL2={},{}\n'.format(limit[1][2], limit[1][3])
+            if ops_monitored == 1:
+                self.string+='BASIN_LL1={},{}\n'.format(limit[0][0])
+                self.string+='BASIN_UL1={},{}\n'.format(limit[0][1])
+                self.string+='BASIN_LL2={},{}\n'.format(limit[1][0])
+                self.string+='BASIN_UL2={},{}\n'.format(limit[1][1])
+            elif ops_monitored == 2:
+                self.string+='BASIN_LL1={},{}\n'.format(limit[0][0], limit[0][1])
+                self.string+='BASIN_UL1={},{}\n'.format(limit[0][2], limit[0][3])
+                self.string+='BASIN_LL2={},{}\n'.format(limit[1][0], limit[1][1])
+                self.string+='BASIN_UL2={},{}\n'.format(limit[1][2], limit[1][3])
+            elif ops_monitored >= 3:
+                print("Current version not supported to monitor more than one CV")
+            else:
+                print("Must supply at least one CV to monitor "
         if basins == 3:
             self.string+='ARG={},{}\n'.format(basin_CV[0], basin_CV[1], basin_CV[3])
             self.string+='STRIDE={}\n'.format(self.print_stride)
-            self.string+='BASIN_LL1={},{}\n'.format(limit[0][0], limit[0][1])
-            self.string+='BASIN_UL1={},{}\n'.format(limit[0][2], limit[0][3])
-            self.string+='BASIN_LL2={},{}\n'.format(limit[1][0], limit[1][1])
-            self.string+='BASIN_UL2={},{}\n'.format(limit[1][2], limit[1][3])
-            self.string+='BASIN_LL3={},{}\n'.format(limit[2][0], limit[2][1])
-            self.string+='BASIN_UL3={},{}\n'.format(limit[2][2], limit[2][3])
+            if ops_monitored == 1:
+                self.string+='BASIN_LL1={},{}\n'.format(limit[0][0])
+                self.string+='BASIN_UL1={},{}\n'.format(limit[0][1])
+                self.string+='BASIN_LL2={},{}\n'.format(limit[1][0])
+                self.string+='BASIN_UL2={},{}\n'.format(limit[1][1])
+                self.string+='BASIN_LL3={},{}\n'.format(limit[2][0])
+                self.string+='BASIN_UL3={},{}\n'.format(limit[2][1])
+            elif ops_monitored == 2:
+                self.string+='BASIN_LL1={},{}\n'.format(limit[0][0], limit[0][1])
+                self.string+='BASIN_UL1={},{}\n'.format(limit[0][2], limit[0][3])
+                self.string+='BASIN_LL2={},{}\n'.format(limit[1][0], limit[1][1])
+                self.string+='BASIN_UL2={},{}\n'.format(limit[1][2], limit[1][3])
+                self.string+='BASIN_LL3={},{}\n'.format(limit[2][0], limit[2][1])
+                self.string+='BASIN_UL3={},{}\n'.format(limit[2][2], limit[2][3])
         if len(basin_CV) >= 4:
             print("Use of more than 3 CVs to monitor COMMITTOR is not currently " \
                   "supported you may manually edit the plumed file")
