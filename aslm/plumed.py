@@ -124,19 +124,15 @@ class GeneratePlumed:
                     print("Must supply a bool for components")
                 pair_list.append(i_counter)
         else:
-            print("Must include at least two atoms in the atom namelist to \
-                  generate distance CVs")
+            print("Must include at least two atoms in the atom namelist to generate distance CVs")
 
         # Difference of distances
         if len(pair_list) >= 2 and diff_of_dist:
             pair_combos = list(combinations(pair_list, 2))
             self.string += '\n# DIFFERENCE OF DISTANCES \n'
             for pair_combo_counter, pair_combo in enumerate(pair_combos):
-                self.string += 'dd{}: COMBINE ARG=d{},d{} \
-                        COEFFICIENTS=1.0,-1.0 PARAMETERS=0.0,0.0 \
-                        POWERS=1.0,1.0 '.format(pair_combo_counter,
-                                                pair_combo[0],
-                                                pair_combo[1])
+                self.string += 'dd{}: COMBINE ARG=d{},d{} COEFFICIENTS=1.0,-1.0 PARAMETERS=0.0,0.0 POWERS=1.0,1.0 '.format(
+                        pair_combo_counter, pair_combo[0], pair_combo[1])
                 if not periodic:
                     self.string += 'PERIODIC=NO\n'
                 elif periodic:
@@ -148,8 +144,7 @@ class GeneratePlumed:
         elif len(pair_list) >= 2 and not diff_of_dist:
             print("Difference of distance CV not generated")
         else:
-            print("Difference of distance CV not generated, requires at least\
-                   2 distance CVs")
+            print("Difference of distance CV not generated, requires at least 2 distance CVs")
 
     def add_group(self, group_name, atoms):
         """
@@ -204,11 +199,9 @@ class GeneratePlumed:
         if len(group_a) == len(group_b) == len(r_0) == len(nl_cutoff):
             self.string += '\n#COORDINATION \n'
             for a_counter, a in enumerate(group_a):
-                self.string += 'c{}: COORDINATION GROUPA={} GROUPB={} R_0={} \
-                        NN={} MM={} D_0={} '.format(a_counter, a,
-                                                    group_b[a_counter],
-                                                    r_0[a_counter],
-                                                    nn, mm, d_0)
+                self.string += 'c{}: COORDINATION GROUPA={} GROUPB={} R_0={} NN={} MM={} D_0={} '.format(
+                        a_counter, a, group_b[a_counter], r_0[a_counter],
+                        nn, mm, d_0)
                 if not nlist:
                     self.string += '\n'
                 elif nlist:
@@ -217,8 +210,7 @@ class GeneratePlumed:
                 else:
                     print('nlist must be a bool')
         else:
-            print("group_a, group_b, r_0, nl_cutoff lists must all be the\
-                   same length")
+            print("group_a, group_b, r_0, nl_cutoff lists must all be the same length")
 
     def add_puckering(self, atoms):
         """
@@ -241,18 +233,14 @@ class GeneratePlumed:
                 else:
                     print("Provide a list of 5 or 6 atoms, or a group name")
             elif len(atom_list) == 5:
-                self.string += 'puck{}: PUCKERING \
-                                ATOMS={},{},{},{},{}\n'.format(
-                                        atom_list_counter, atom_list[0],
-                                        atom_list[1], atom_list[2],
-                                        atom_list[3], atom_list[4])
+                self.string += 'puck{}: PUCKERING ATOMS={},{},{},{},{}\n'.format(
+                        atom_list_counter, atom_list[0], atom_list[1],
+                        atom_list[2], atom_list[3], atom_list[4])
             elif len(atom_list) == 6:
-                self.string += 'puck{}: PUCKERING \
-                                ATOMS={},{},{},{},{},{}\n'.format(
-                                        atom_list_counter, atom_list[0],
-                                        atom_list[1], atom_list[2],
-                                        atom_list[3], atom_list[4],
-                                        atom_list[5])
+                self.string += 'puck{}: PUCKERING ATOMS={},{},{},{},{},{}\n'.format(
+                        atom_list_counter, atom_list[0], atom_list[1],
+                        atom_list[2], atom_list[3], atom_list[4],
+                        atom_list[5])
             else:
                 print("Atom list must contain 5 or 6 atoms")
 
@@ -300,8 +288,7 @@ class GeneratePlumed:
                 self.string += 'BASIN_UL2={},{}\n'.format(limit[1][2],
                                                           limit[1][3])
             elif len(basin_CV) >= 3:
-                print("Current version not supported to monitor more than one \
-                       CV")
+                print("Current version not supported to monitor more than one CV")
             else:
                 print("Must supply at least one CV to monitor")
         elif basins == 3:
@@ -328,13 +315,11 @@ class GeneratePlumed:
                 self.string += 'BASIN_UL3={},{}\n'.format(limit[2][2],
                                                           limit[2][3])
             elif len(basin_CV) >= 3:
-                print("Current version not supported to monitor more than \
-                       one CV")
+                print("Current version not supported to monitor more than one CV")
             else:
                 print("Must supply at least one CV to monitor")
         elif basins >= 4:
-            print("Ability to monitor more than 3 basins is not currently \
-                   supported")
+            print("Ability to monitor more than 3 basins is not currently supported")
         else:
             print("Must supply at least two basins to monitor")
         self.string += 'STRIDE={}\n'.format(self.print_stride)
