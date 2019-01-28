@@ -216,16 +216,13 @@ class GeneratePlumed:
             print ("group_a, group_b, r_0, nl_cutoff lists must all be the same length")
 
 
-    def add_committor(self, ops_monitored, basins, basin_CV, limit):
+    def add_committor(self, basins, basin_CV, limit):
         """
         Parameters
         ----------
-        ops_monitored : int 
+        cvs_monitored : int 
             Number of CVs used to monitor basins
-        basins : int
-            Number of basins used to monitor COMMITTOR
-
-        basin_CVs : list of strings
+        basin_CV : list of strings
             List of variables that correspond to the CVs to be monitored for each
             basin. Only accepts 2-3 CVs as an input.
             Example: ['d1','d2']
@@ -244,45 +241,48 @@ class GeneratePlumed:
         """
         self.string+='\nCOMMITTOR ...\n'
         if basins == 2:
-            self.string+='ARG={},{}\n'.format(basin_CV[0], basin_CV[1])
-            self.string+='STRIDE={}\n'.format(self.print_stride)
-            if ops_monitored == 1:
-                self.string+='BASIN_LL1={},{}\n'.format(limit[0][0])
-                self.string+='BASIN_UL1={},{}\n'.format(limit[0][1])
-                self.string+='BASIN_LL2={},{}\n'.format(limit[1][0])
-                self.string+='BASIN_UL2={},{}\n'.format(limit[1][1])
-            elif ops_monitored == 2:
+            if len(basin_CV) == 1:
+                self.string+='ARG={}\n'.format(basin_CV[0])
+                self.string+='BASIN_LL1={}\n'.format(limit[0][0])
+                self.string+='BASIN_UL1={}\n'.format(limit[0][1])
+                self.string+='BASIN_LL2={}\n'.format(limit[1][0])
+                self.string+='BASIN_UL2={}\n'.format(limit[1][1])
+            elif len(basin_CV) == 2:
+                self.string+='ARG={},{}\n'.format(basin_CV[0], basin_CV[1])
                 self.string+='BASIN_LL1={},{}\n'.format(limit[0][0], limit[0][1])
                 self.string+='BASIN_UL1={},{}\n'.format(limit[0][2], limit[0][3])
                 self.string+='BASIN_LL2={},{}\n'.format(limit[1][0], limit[1][1])
                 self.string+='BASIN_UL2={},{}\n'.format(limit[1][2], limit[1][3])
-            elif ops_monitored >= 3:
+            elif len(basin_CV) >= 3:
                 print("Current version not supported to monitor more than one CV")
             else:
-                print("Must supply at least one CV to monitor "
-        if basins == 3:
-            self.string+='ARG={},{}\n'.format(basin_CV[0], basin_CV[1], basin_CV[3])
-            self.string+='STRIDE={}\n'.format(self.print_stride)
-            if ops_monitored == 1:
-                self.string+='BASIN_LL1={},{}\n'.format(limit[0][0])
-                self.string+='BASIN_UL1={},{}\n'.format(limit[0][1])
-                self.string+='BASIN_LL2={},{}\n'.format(limit[1][0])
-                self.string+='BASIN_UL2={},{}\n'.format(limit[1][1])
-                self.string+='BASIN_LL3={},{}\n'.format(limit[2][0])
-                self.string+='BASIN_UL3={},{}\n'.format(limit[2][1])
-            elif ops_monitored == 2:
+                print("Must supply at least one CV to monitor")
+        elif basins == 3:
+            if len(basin_CV) == 1:
+                self.string+='ARG={}\n'.format(basin_CV[0])
+                self.string+='BASIN_LL1={}\n'.format(limit[0][0])
+                self.string+='BASIN_UL1={}\n'.format(limit[0][1])
+                self.string+='BASIN_LL2={}\n'.format(limit[1][0])
+                self.string+='BASIN_UL2={}\n'.format(limit[1][1])
+                self.string+='BASIN_LL3={}\n'.format(limit[2][0])
+                self.string+='BASIN_UL3={}\n'.format(limit[2][1])
+            elif len(basin_CV) == 2:
+                self.string+='ARG={},{}\n'.format(basin_CV[0], basin_CV[1])
                 self.string+='BASIN_LL1={},{}\n'.format(limit[0][0], limit[0][1])
                 self.string+='BASIN_UL1={},{}\n'.format(limit[0][2], limit[0][3])
                 self.string+='BASIN_LL2={},{}\n'.format(limit[1][0], limit[1][1])
                 self.string+='BASIN_UL2={},{}\n'.format(limit[1][2], limit[1][3])
                 self.string+='BASIN_LL3={},{}\n'.format(limit[2][0], limit[2][1])
                 self.string+='BASIN_UL3={},{}\n'.format(limit[2][2], limit[2][3])
-        if len(basin_CV) >= 4:
-            print("Use of more than 3 CVs to monitor COMMITTOR is not currently " \
-                  "supported you may manually edit the plumed file")
-        if len(basin_CV) < 2:
-            print("You must provide at least two CVs to monitor if the shooting " \
-                  "point has committed to a basin")
+            elif len(basin_CV) >= 3:
+                print("Current version not supported to monitor more than one CV")
+            else:
+                print("Must supply at least one CV to monitor")
+        elif basins >= 4:
+            print("Ability to monitor more than 3 basins is not currently supported")
+        else:
+            print("Must supply at least two basins to monitor")
+        self.string+='STRIDE={}\n'.format(self.print_stride)
         self.string+='... COMMITTOR\n'
 
 
