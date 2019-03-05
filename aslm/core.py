@@ -26,12 +26,13 @@ class AimlessShooting:
         Name of logfile.
     """
     def __init__(self, starting_points, accepts_goal=100, deltaT=10,
-                 logfile='log', colvar_name='COLVAR'):
+                 retries=10, logfile='log', colvar_name='COLVAR'):
         self.starting_points = starting_points
         self.logfile = logfile
         self.queue = []
         self.guesses = []
         self.num_accepts = 0
+        self.retries = retries
         self.accepts_goal = accepts_goal
         self.deltaT = deltaT
         self.colvar_name = colvar_name
@@ -43,98 +44,137 @@ class AimlessShooting:
         for f in filenames:
             name = op.splitext(f)[0]
             self.guesses.append(name)
-            shutil.copyfile(op.join(self.starting_points, f),
-                            op.join('guesses', f))
+            if op.exists(op.join('guesses', f)):
+                pass
+            else:
+                shutil.copyfile(op.join(self.starting_points, f),
+                                op.join('guesses', f))
         return
 
     def start(self):
         # TODO: write a function to clean old files and COLVARs
 
         # Generate all necessary folders if they do not already exist.
-        required_directories = ['guesses', 'queue', 'plumed_log']
+        required_directories = ['guesses', 'queue', 'COLVARS', 'plumed_log']
         for directory in required_directories:
             if op.exists(directory):
                 pass
             else:
                 os.mkdir(directory)
 
-        # TODO: if restarting, first check if guesses is already populated.
-        self.generate_guesses()
+        trial_num = 0
+        counter = 0
+        max_count = 5000
 
-        while self.num_accepts < self.accepts_goal:
-            # Initialize a shooting point
-            sp = self.initialize_shooting_point()
+        # while self.num_accepts < self.accepts_goal:
+        # while trial_num < self.retries:
+        for trial_num in range(self.retries):
+            # TODO: if restarting, first check if guesses is already populated.
+            self.generate_guesses()
+            while counter < max_count:
+                # Initialize a shooting point
+                sp = self.initialize_shooting_point()
 
-            # Generate velocities
-            sp.generate_velocity()
-
-            # Run forward simulation
-            sp.run_forward()
-
-            # Create log file and write header.
-            if not op.exists(self.logfile):
-                if op.exists(self.colvar_name):
-                    log_header(self.colvar_name, filename=self.logfile)
+                # If `self.initialize_shooting_point()` cannot generate a
+                # new shooting point, then it returns `1`.
+                if sp == 1:
+                    break
                 else:
-                    raise Exception("{} file does not exist "
-                                    .format(self.colvar_name)
-                                    + "and header cannot be extracted.")
+                    pass
+
+                # Generate velocities
+                sp.generate_velocity()
+
+                # Run forward simulation
+                sp.run_forward()
+
+                # Create log file and write header.
+                if not op.exists(self.logfile):
+                    if op.exists(self.colvar_name):
+                        log_header(self.colvar_name, filename=self.logfile)
+                    else:
+                        raise Exception("{} file does not exist "
+                                        .format(self.colvar_name)
+                                        + "and header cannot be extracted.")
+                else:
+                    pass
+
+                # Check if forward simulation commits to basin
+                if sp.forward_commit is None:
+                    # Log results
+                    sp.result = 'inconclusive'
+                    sp.log(self.logfile)
+                    save_colvar(self.colvar_name, sp.name + '_f')
+
+                    # Check to see how many times sp has attempted to commit
+                    # if attempts < attempt_criteria:
+                        # Restart the shooting point with new velocities
+                        # restart = self.initialize_shooting_point()  # **this line might break
+                        # self.queue.append(restart)
+                    # else:
+                        # If there have been too many attempts on the same sp
+                        # pass
+                else:
+                    # Save the COLVAR of the previous run before starting new run.
+                    save_colvar(self.colvar_name, sp.name + '_f')
+                    # Continue to run the reverse simulation
+                    sp.run_reverse()
+                    # If reverse simulation does not commit to a basin
+                    if sp.reverse_commit is None:
+                        sp.result = 'inconclusive'
+                        sp.log(self.logfile)  # Log run
+                        # initialize a new --- RES
+                    # If reverse simulation commits to the same basin as forward
+                    elif sp.reverse_commit == sp.forward_commit:
+                        sp.result = 'reject'
+                        sp.log(self.logfile)
+                        # launch new trajectory from queue
+                    elif sp.reverse_commit != sp.forward_commit:
+                        sp.result = 'accept'
+                        sp.log(self.logfile)
+                        self.num_accepts += 1
+
+                        # Generate 3 new shooting points
+                        job1 = sp.generate_new_shooting_points(self.deltaT, 'fwd')
+                        self.queue.append(job1)
+                        job1name = job1 + '.rst7'
+                        shutil.move(job1name, op.join('queue', job1name))
+
+                        job2 = sp.generate_new_shooting_points(self.deltaT, 'rev')
+                        self.queue.append(job2)
+                        job2name = job2 + '.rst7'
+                        shutil.move(job2name, op.join('queue', job2name))
+
+                        job3 = sp.generate_new_shooting_points(self.deltaT, '0')
+                        self.queue.append(job3)
+                        job3name = job3 + '.rst7'
+                        shutil.move(job3name, op.join('queue', job3name))
+                    else:
+                        raise Exception("Unknown shooting point result.")
+                    save_colvar(self.colvar_name, sp.name + '_r')
+
+                # Delete all run files after the shooting point is complete.
+                self.remove_files(sp.name)
+                # Increment the job counter.
+                # self.counter += 1
+                counter += 1
+            if counter == max_count:
+                break
             else:
                 pass
+        return
 
-            # Check if forward simulation commits to basin
-            if sp.forward_commit is None:
-                # Log results
-                sp.results = 'inconclusive'
-                sp.log(self.logfile)
-                continue
-
-                # Check to see how many times sp has attempted to commit
-                # if attempts < attempt_criteria:
-                    # Restart the shooting point with new velocities
-                    # restart = self.initialize_shooting_point()  # **this line might break
-                    # self.queue.append(restart)
-                # else:
-                    # If there have been too many attempts on the same sp
-                    # pass
-            else:
-                # Continue to run the reverse simulation
-                sp.run_reverse()
-                # If reverse simulation does not commit to a basin
-                if sp.reverse_commit is None:
-                    sp.result = 'inconclusive'
-                    sp.log(self.logfile)  # Log run
-                    continue
-                    # initialize a new --- RES
-                # If reverse simulation commits to the same basin as forward
-                elif sp.reverse_commit == sp.forward_commit:
-                    sp.result = 'reject'
-                    sp.log(self.logfile)
-                    # launch new trajectory from queue
-                elif sp.reverse_commit != sp.forward_commit:
-                    sp.result = 'accept'
-                    sp.log(self.logfile)
-                    self.num_accepts += 1
-                    # Generate 3 new shooting points
-                    job1 = sp.generate_new_shooting_points(self.deltaT, 'fwd')
-                    self.queue.append(job1)
-                    job1name = job1 + '.rst7'
-                    shutil.copyfile(job1name, op.join('queue', job1name))
-
-                    job2 = sp.generate_new_shooting_points(self.deltaT, 'rev')
-                    self.queue.append(job2)
-                    job2name = job2 + '.rst7'
-                    shutil.copyfile(job2name, op.join('queue', job2name))
-
-                    job3 = sp.generate_new_shooting_points(self.deltaT, '0')
-                    self.queue.append(job3)
-                    job3name = job3 + '.rst7'
-                    shutil.copyfile(job3name, op.join('queue', job3name))
-                else:
-                    raise Exception("Unknown shooting point result.")
-
-            # Increment the job counter.
-            # self.counter += 1
+    def remove_files(self, basename):
+        name_tags = ['_r', '_f', '_init', '_init']
+        out_tags = ['', '_out']
+        extensions = ['.rst7', '.out', '.nc', '.log', '.info']
+        for tag in name_tags:
+            for out_tag in out_tags:
+                for ext in extensions:
+                    if op.exists(basename + tag + out_tag + ext):
+                        os.remove(basename + tag + out_tag + ext)
+                    else:
+                        pass
         return
 
     def initialize_shooting_point(self):
@@ -152,7 +192,7 @@ class AimlessShooting:
         # Check queue first.
         if self.queue:
             directory = './queue'
-            print('current directory:', directory)
+            # print('current directory:', directory)
             name = self.queue[0]
             filename = name + '.rst7'
             target = name + '_init.rst7'
@@ -160,7 +200,7 @@ class AimlessShooting:
             del self.queue[0]
         elif self.guesses:
             directory = './guesses'
-            print('current directory:', directory)
+            # print('current directory:', directory)
             name = self.guesses[0]
             filename = name + '.rst7'
             target = name + '_init.rst7'
@@ -168,8 +208,9 @@ class AimlessShooting:
             del self.guesses[0]
         else:
             with open(self.logfile, 'a') as f:
-                f.write("No more guesses available. Exiting.")
-            sys.exit()
+                f.write("# No more guesses available. Exiting.\n")
+            return 1
+            # sys.exit()
 
         sp = ShootingPoint(name,
                            topology_file="system.prmtop",
@@ -206,7 +247,7 @@ def run_MD(inputfile, jobname, output=None, topology="system.prmtop",
     if output:
         logf = open(output, 'w')
     else:
-        logf = None
+        logf = subprocess.DEVNULL
 
     subprocess.run(commands, stdout=logf)
 
@@ -270,7 +311,7 @@ class ShootingPoint:
 
         # Copy plumed log file to new directory with unique name.
         if op.exists('plumed_log'):
-            shutil.copyfile(output, op.join('plumed_log', output))
+            shutil.move(output, op.join('plumed_log', output))
         else:
             raise Exception("There is no 'plumed_log' directory.")
         return
@@ -288,9 +329,15 @@ class ShootingPoint:
 
         # Copy plumed log file to new directory with unique name.
         if op.exists('plumed_log'):
-            shutil.copyfile(output, op.join('plumed_log', output))
+            shutil.move(output, op.join('plumed_log', output))
         else:
             raise Exception("There is no 'plumed_log' directory.")
+
+        # Copy COLVAR file to new directory with unique name.
+        # if op.exists('COLVARS'):
+            # shutil.move('COLVAR', op.join('COLVARS', jobname + '_COLVAR'))
+        # else:
+            # raise Exception("There is no 'COLVARS' directory.")
         return
 
     def check_if_committed(self, output):
@@ -347,18 +394,20 @@ class ShootingPoint:
             Returns a strig of the restart file created from cpptraj
         """
         if direction == 'fwd':
-            name = self.name + "_f"
             tag = "_f"
+            name = self.name + tag
         elif direction == 'rev':
-            name = self.name + "_r"
             tag = "_r"
+            name = self.name + tag
         elif direction == '0':
-            # Make sure to copy the original shooting point for this instance!!
-            name = self.name + "_0"
+            # Copies the original rst7 file and renames it.
             tag = "_0"
+            name = self.name + tag
+            shutil.copyfile(self.name + "_init.rst7", name + ".rst7")
+            return name
         trajectory = name + ".nc"
-        outfile = self.name + tag + ".rst7"
-        outfile_jobname = self.name + tag
+        outfile = name + ".rst7"
+        outfile_jobname = name
 
         topology_text = "PRMTOP"
         trajectory_text = "TRAJECTORY"
@@ -382,12 +431,12 @@ class ShootingPoint:
 
         # Run cpptraj to get new restart file
         commands = ["cpptraj", "-i", cpptrajin]
-        subprocess.run(commands)
+        subprocess.run(commands, stdout=subprocess.DEVNULL)
 
         return outfile_jobname
 
     def generate_velocity(self, output=None, topology="system.prmtop",
-                          engine="AMBER", solvated=False):
+                          engine="AMBER", solvated=True):
         """
         Function takes shooting point and generates velocities by running MD
         for 1 step with a very small timestep. It then generates the starting
@@ -410,6 +459,12 @@ class ShootingPoint:
         rev = self.name + "_r.rst7"
         # Run short MD simulation to get self.name_init.rst7 file
         run_MD(self.input_init, initname, output, topology, engine)
+        
+        # Remove the COLVAR file because it is unnecessary.
+        if op.exists('COLVAR'):
+            os.remove('COLVAR')
+        else:
+            pass
 
         init = initname + "_out.rst7"
         with open(init, 'r') as init_file:
@@ -470,5 +525,15 @@ class ShootingPoint:
             pass
         else:
             self._read_cv_values()
-        log_run(self.name, self.cv_values, self.result, filename=filename)
+        log_run(self.name, self.cv_values, self.result,
+                self.forward_commit, filename=filename)
         return
+
+
+def save_colvar(colvar_name, jobname):
+    # Copy COLVAR file to new directory with unique name.
+    if op.exists('COLVARS'):
+        shutil.move(colvar_name, op.join('COLVARS', jobname + '_COLVAR'))
+    else:
+        raise Exception("There is no 'COLVARS' directory.")
+    return
