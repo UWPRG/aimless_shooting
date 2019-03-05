@@ -1,6 +1,6 @@
 
 
-def log_run(sp_name, CVs, result, filename='log'):
+def log_run(sp_name, CVs, result, forward_commit_basin, filename='log'):
     """Logs information after a shooting point run to log file.
 
     Parameters
@@ -16,7 +16,8 @@ def log_run(sp_name, CVs, result, filename='log'):
 
     CVs = [str(n) for n in CVs]
     with open(filename, 'a') as f:
-        line = "{} {} {}\n".format(sp_name, ' '.join(CVs), result)
+        line = "{} {} {} {}\n".format(sp_name, ' '.join(CVs), result,
+                                      forward_commit_basin)
         f.write(line)
     return
 
@@ -42,5 +43,5 @@ def get_colvar_header(colvar_file):
 def log_header(colvar_file, filename='log'):
     colvar_header = get_colvar_header(colvar_file)
     with open(filename, 'a') as f:
-        f.write("{} {} {}\n".format('NAME', ' '.join(colvar_header), 'RESULT'))
+        f.write("{} {} {} {}\n".format('NAME', ' '.join(colvar_header), 'RESULT', 'FORWARD_COMMIT_BASIN'))
     return
