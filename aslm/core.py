@@ -479,8 +479,8 @@ class ShootingPoint:
         fwd = self.name + "_f.rst7"
         rev = self.name + "_r.rst7"
         # Run short MD simulation to get self.name_init.rst7 file
-        run_MD(self.input_init, initname, output, topology, engine,
-               cores=self.cores)
+        run_MD(self.input_init, initname, output=output, cores=self.cores,
+               topology=topology, engine=engine)
         
         # Remove the COLVAR file because it is unnecessary.
         if op.exists('COLVAR'):
