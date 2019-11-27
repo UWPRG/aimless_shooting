@@ -26,16 +26,19 @@ class AimlessShooting:
         Name of logfile.
     """
     def __init__(self, starting_points, accepts_goal=100, deltaT=10,
-                 retries=10, logfile='log', colvar_name='COLVAR'):
+                 retries=10, max_count=2000, logfile='log', cores=1,
+                 colvar_name='COLVAR'):
         self.starting_points = starting_points
         self.logfile = logfile
         self.queue = []
         self.guesses = []
         self.num_accepts = 0
         self.retries = retries
+        self.max_count = max_count
         self.accepts_goal = accepts_goal
         self.deltaT = deltaT
         self.colvar_name = colvar_name
+        self.cores = cores
         # self.counter = 0
         return
 
@@ -64,14 +67,15 @@ class AimlessShooting:
 
         trial_num = 0
         counter = 0
-        max_count = 5000
+        # max_count = 10000
+        max_count_reached = False
 
         # while self.num_accepts < self.accepts_goal:
         # while trial_num < self.retries:
         for trial_num in range(self.retries):
             # TODO: if restarting, first check if guesses is already populated.
             self.generate_guesses()
-            while counter < max_count:
+            while self.queue or self.guesses:  # counter < max_count:
                 # Initialize a shooting point
                 sp = self.initialize_shooting_point()
 
@@ -156,13 +160,28 @@ class AimlessShooting:
                 # Delete all run files after the shooting point is complete.
                 self.remove_files(sp.name)
                 # Increment the job counter.
-                # self.counter += 1
                 counter += 1
-            if counter == max_count:
+                if counter == self.max_count:
+                    max_count_reached = True
+                    with open(self.logfile, 'a') as f:
+                        f.write("# Max count reached ({}). ".format(self.max_count) +
+                                "No new shooting points will be generated.\n")
+                else:
+                    pass
+                # End of while loop
+
+            # If max_count is already reached, then do not restart the run.
+            if max_count_reached:
                 break
             else:
                 pass
         return
+                # self.counter += 1
+            # if counter == max_count:
+                # break
+            # else:
+                # pass
+        # return
 
     def remove_files(self, basename):
         name_tags = ['_r', '_f', '_init', '_init']
@@ -218,7 +237,7 @@ class AimlessShooting:
         return sp
 
 
-def run_MD(inputfile, jobname, output=None, topology="system.prmtop",
+def run_MD(inputfile, jobname, output=None, cores=1, topology="system.prmtop",
            engine="AMBER"):
     """
     Python wrapper to run MD from commandline
@@ -236,7 +255,8 @@ def run_MD(inputfile, jobname, output=None, topology="system.prmtop",
     engine: stf
         engine being used for simulation, only takes AMBER inputs
     """
-    commands = ["sander.MPI", "-O",
+    commands = ["mpirun", "-np", str(cores),
+                "sander.MPI", "-O",
                 "-i", inputfile,
                 "-o", jobname + ".out",
                 "-x", jobname + ".nc",
@@ -277,13 +297,14 @@ def find_and_replace(line, substitutions):
 
 
 class ShootingPoint:
-    def __init__(self, name, input_md="nvt.in", input_init="init.in", topology_file=None,
-                 md_engine="AMBER"):
+    def __init__(self, name, input_md="nvt.in", input_init="init.in", cores=1,
+                 topology_file=None, md_engine="AMBER"):
         self.name = name  # Name of shooting point
         self.input_md = input_md  # Name of AMBER input file for running MD.
         self.input_init = input_init  # Name of AMBER input file for velocity generation.
         self.topology_file = topology_file  # Path to topology file
         self.md_engine = md_engine
+        self.cores = cores
         # self._input_file_dir = op.dirname(op.abspath(self.input_file))
         # self._input_file_name = op.splitext(op.basename(self.input_file))[0]
 
@@ -305,8 +326,8 @@ class ShootingPoint:
         """
         jobname = self.name + "_f"
         output = self.name + "_f.log"
-        run_MD(self.input_md, jobname, output, topology="system.prmtop",
-               engine="AMBER")
+        run_MD(self.input_md, jobname, output, cores=self.cores,
+               topology="system.prmtop", engine="AMBER")
         self.forward_commit = self.check_if_committed(output)
 
         # Copy plumed log file to new directory with unique name.
@@ -323,8 +344,8 @@ class ShootingPoint:
         """
         jobname = self.name + "_r"
         output = self.name + "_r.log"
-        run_MD(self.input_md, jobname, output, topology="system.prmtop",
-               engine="AMBER")
+        run_MD(self.input_md, jobname, output, cores=self.cores,
+               topology="system.prmtop", engine="AMBER")
         self.reverse_commit = self.check_if_committed(output)
 
         # Copy plumed log file to new directory with unique name.
@@ -430,7 +451,7 @@ class ShootingPoint:
                 file.write(find_and_replace(line, substitutions))
 
         # Run cpptraj to get new restart file
-        commands = ["cpptraj", "-i", cpptrajin]
+        commands = ["cpptraj.MPI", "-i", cpptrajin]
         subprocess.run(commands, stdout=subprocess.DEVNULL)
 
         return outfile_jobname
@@ -458,7 +479,8 @@ class ShootingPoint:
         fwd = self.name + "_f.rst7"
         rev = self.name + "_r.rst7"
         # Run short MD simulation to get self.name_init.rst7 file
-        run_MD(self.input_init, initname, output, topology, engine)
+        run_MD(self.input_init, initname, output, topology, engine,
+               cores=self.cores)
         
         # Remove the COLVAR file because it is unnecessary.
         if op.exists('COLVAR'):
