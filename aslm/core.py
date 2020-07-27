@@ -252,7 +252,36 @@ def run_MD(inputfile, jobname, output=None, cores=1, topology="system.prmtop",
         name of topology file (e.g. for amber it would be  "system.prmtop")
     output : str
         file to redirect run output too
-    engine: stf
+    engine: str
+        engine being used for simulation; options are AMBER or CP2K;
+        default is AMBER
+    """
+    if engine == "AMBER":
+        run_AMBER(inputfile, jobname, output, cores, topology)
+    elif engine == "CP2K":
+        run_CP2K(inputfile, jobname, output, cores, topology)
+    else:
+        raise Exception("Engine '{}' is not supported, please".format(engine) +
+                        " specify either 'AMBER' or 'CP2K'.")
+    return
+
+
+def run_AMBER(inputfile, jobname, output=None, cores=1,
+              topology="system.prmtop"):
+    """
+    Python wrapper to run MD from commandline
+
+    Parameters
+    ----------
+    inputfile : str
+        input file containing simulation details
+    jobname : str
+        name for all files associated with run
+    topology : str
+        name of topology file (e.g. for amber it would be  "system.prmtop")
+    output : str
+        file to redirect run output too
+    engine: str
         engine being used for simulation, only takes AMBER inputs
     """
     commands = ["mpirun", "-np", str(cores),
@@ -275,6 +304,42 @@ def run_MD(inputfile, jobname, output=None, cores=1, topology="system.prmtop",
         logf.close()
     else:
         pass
+    return
+
+
+def run_CP2K(inputfile, jobname, output=None, cores=1, exe=""):
+    """
+    Python wrapper to run CP2K MD from commandline
+
+    Parameters
+    ----------
+    inputfile : str
+        input file containing simulation details
+    jobname : str
+        name for all files associated with run
+    output : str
+        file to redirect run output too
+    exe : str
+        path to the executable for CP2K
+    """
+    assert op.exists(exe), "CP2K executable not found at: {}".format(exe)
+
+    commands = ["mpirun", "-np", str(cores), exe, 
+                "-i", inputfile,
+                "-o", jobname + ".out",
+                ]
+    if output:
+        logf = open(output, 'w')
+    else:
+        logf = subprocess.DEVNULL
+
+    subprocess.run(commands, stdout=logf)
+
+    if output:
+        logf.close()
+    else:
+        pass
+    return
 
 
 def find_and_replace(line, substitutions):
