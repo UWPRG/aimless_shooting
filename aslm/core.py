@@ -196,7 +196,27 @@ class AimlessShooting:
                         pass
         return
 
-    def initialize_shooting_point(self):
+    def initialize_shooting_point(self, engine):
+        """Creates new shooting point.
+
+        This will always check the `self.queue` variable for new
+        ShootingPoints. If `self.queue` is empty, it will instead move
+        on to the next structure in `self.guesses`.
+        
+        Returns
+        -------
+        sp : ShootingPoint
+            New ShootingPoint object.
+        """
+        if engine == "AMBER":
+            sp = self.initialize_AMBER_shooting_point()
+        elif engine == "CP2K":
+            sp = self.initialize_CP2K_shooting_point()
+        else:
+            raise Exception("Engine not recognized: {}".format(engine))
+        return sp
+
+    def initialize_AMBER_shooting_point(self):
         """Creates new shooting point.
 
         This will always check the `self.queue` variable for new
@@ -234,6 +254,45 @@ class AimlessShooting:
         sp = ShootingPoint(name,
                            topology_file="system.prmtop",
                            md_engine="AMBER")
+        return sp
+
+    def initialize_CP2K_shooting_point(self):
+        """Creates new shooting point in CP2K.
+
+        This will always check the `self.queue` variable for new
+        ShootingPoints. If `self.queue` is empty, it will instead move
+        on to the next structure in `self.guesses`.
+        
+        Returns
+        -------
+        sp : ShootingPoint
+            New ShootingPoint object.
+        """
+        # Check queue first.
+        if self.queue:
+            directory = './queue'
+            # print('current directory:', directory)
+            name = self.queue[0]
+            filename = name + '.rst7'
+            target = name + '_init.rst7'
+            shutil.copyfile(op.join(directory, filename), target)
+            del self.queue[0]
+        elif self.guesses:
+            directory = './guesses'
+            # print('current directory:', directory)
+            name = self.guesses[0]
+            filename = name + '.rst7'
+            target = name + '_init.rst7'
+            shutil.copyfile(op.join(directory, filename), target)
+            del self.guesses[0]
+        else:
+            with open(self.logfile, 'a') as f:
+                f.write("# No more guesses available. Exiting.\n")
+            return 1
+            # sys.exit()
+
+        sp = ShootingPoint(name,
+                           md_engine="CP2K")
         return sp
 
 
