@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 
+import mdtraj as md
 import numpy as np
 
 from .utils import log_run
@@ -273,16 +274,16 @@ class AimlessShooting:
             directory = './queue'
             # print('current directory:', directory)
             name = self.queue[0]
-            filename = name + '.rst7'
-            target = name + '_init.rst7'
+            filename = name + '.inp'
+            target = name + '_init.inp'
             shutil.copyfile(op.join(directory, filename), target)
             del self.queue[0]
         elif self.guesses:
             directory = './guesses'
             # print('current directory:', directory)
             name = self.guesses[0]
-            filename = name + '.rst7'
-            target = name + '_init.rst7'
+            filename = name + '.inp'
+            target = name + '_init.inp'
             shutil.copyfile(op.join(directory, filename), target)
             del self.guesses[0]
         else:
@@ -291,7 +292,7 @@ class AimlessShooting:
             return 1
             # sys.exit()
 
-        sp = ShootingPoint(name,
+        sp = ShootingPoint(name, input_md='md.inp', input_init='md_init.inp',
                            md_engine="CP2K")
         return sp
 
@@ -366,7 +367,7 @@ def run_AMBER(inputfile, jobname, output=None, cores=1,
     return
 
 
-def run_CP2K(inputfile, jobname, output=None, cores=1, exe=""):
+def run_CP2K(inputfile, jobname, output=None, cores=1, exe=None):
     """
     Python wrapper to run CP2K MD from commandline
 
@@ -451,7 +452,7 @@ class ShootingPoint:
         jobname = self.name + "_f"
         output = self.name + "_f.log"
         run_MD(self.input_md, jobname, output, cores=self.cores,
-               topology="system.prmtop", engine="AMBER")
+               topology=self.topology, engine=self.md_engine)
         self.forward_commit = self.check_if_committed(output)
 
         # Copy plumed log file to new directory with unique name.
@@ -469,7 +470,7 @@ class ShootingPoint:
         jobname = self.name + "_r"
         output = self.name + "_r.log"
         run_MD(self.input_md, jobname, output, cores=self.cores,
-               topology="system.prmtop", engine="AMBER")
+               topology=self.topology, engine=self.md_engine)
         self.reverse_commit = self.check_if_committed(output)
 
         # Copy plumed log file to new directory with unique name.
@@ -507,10 +508,23 @@ class ShootingPoint:
                 status = int(line.split()[-1].rstrip())
         return status
 
-    def generate_new_shooting_points(self, deltaT, direction,
-                                     topology="system.prmtop",
-                                     cpptrajskel="cpptraj_skel.in",
-                                     cpptrajin="cpptraj.in"):
+    def generate_new_shooting_points(self, deltaT, direction):
+        if self.md_engine == "AMBER":
+            return self.generate_new_AMBER_shooting_points(self, deltaT,
+                                                           direction,
+                                                           self.topology)
+        elif self.md_engine == "CP2K":
+            return self.generate_new_CP2K_shooting_points(self, deltaT,
+                                                          direction)
+        else:
+            raise Exception("Engine '{}' is not supported, ".format(engine) +
+                            "please specify either 'AMBER' or 'CP2K'.")
+        return
+
+    def generate_new_AMBER_shooting_points(self, deltaT, direction,
+                                           topology="system.prmtop",
+                                           cpptrajskel="cpptraj_skel.in",
+                                           cpptrajin="cpptraj.in"):
         """
         Wrapper for cpptraj (AmberTools14). Creates an input file from cpptraj
         skeleton, creates a new restart file shifted deltaT frames away from
@@ -554,6 +568,71 @@ class ShootingPoint:
         outfile = name + ".rst7"
         outfile_jobname = name
 
+        topology_text = "PRMTOP"
+        trajectory_text = "TRAJECTORY"
+        deltaT_text = "FRAME"
+        outfile_text = "OUTFILE"
+
+        if isinstance(deltaT, str):
+            pass
+        else:
+            deltaT = str(deltaT)
+
+        substitutions = {topology_text: topology, trajectory_text: trajectory,
+                         deltaT_text: deltaT, outfile_text: outfile}
+
+        # First create input file (cpptraj.in)
+        with open(cpptrajskel, 'r') as file:
+            lines = file.readlines()
+        with open(cpptrajin, 'w') as file:
+            for line in lines:
+                file.write(find_and_replace(line, substitutions))
+
+        # Run cpptraj to get new restart file
+        commands = ["cpptraj.MPI", "-i", cpptrajin]
+        subprocess.run(commands, stdout=subprocess.DEVNULL)
+
+        return outfile_jobname
+
+    def generate_new_CP2K_shooting_points(self, deltaT, direction):
+        """
+        Wrapper for cpptraj (AmberTools14). Creates an input file from cpptraj
+        skeleton, creates a new restart file shifted deltaT frames away from
+        the original shooting point.
+
+        Parameters
+        ----------
+        deltaT : str
+            Frames away from the original shooting point to create new
+            restart file
+        direction : str
+            Identifier taged on to filename to track where the new shooting
+            point is created from
+
+         Returns
+        ----------
+        outfile: str
+            Returns a string of the restart file created from cpptraj
+        """
+        if direction == 'fwd':
+            tag = "_f"
+            name = self.name + tag
+        elif direction == 'rev':
+            tag = "_r"
+            name = self.name + tag
+        elif direction == '0':
+            # Copies the original rst7 file and renames it.
+            tag = "_0"
+            name = self.name + tag
+            shutil.copyfile(self.name + "_init.inp", name + ".inp")
+            return name
+        trajectory = name + ".xyz"
+        outfile = name + ".inp"
+        outfile_jobname = name
+
+        
+
+        # Run cpptraj
         topology_text = "PRMTOP"
         trajectory_text = "TRAJECTORY"
         deltaT_text = "FRAME"
