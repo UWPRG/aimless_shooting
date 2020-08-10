@@ -8,8 +8,7 @@ import sys
 import mdtraj as md
 import numpy as np
 
-from .utils import log_run
-from .utils import log_header
+from .utils import log_run, log_header, read_xyz_file, write_xyz_frame
 
 # Make sure to copy the original shooting point for the "_0" instance!!
 
@@ -596,9 +595,11 @@ class ShootingPoint:
 
     def generate_new_CP2K_shooting_points(self, deltaT, direction):
         """
-        Wrapper for cpptraj (AmberTools14). Creates an input file from cpptraj
-        skeleton, creates a new restart file shifted deltaT frames away from
-        the original shooting point.
+        Generates new shooting points from original xyz trajectory
+
+        Reads in CP2K xyz trajectory file and writes out frames that are
+        deltaT away from original shooting point, or simply copies the original
+        shooting point.
 
         Parameters
         ----------
@@ -612,7 +613,7 @@ class ShootingPoint:
          Returns
         ----------
         outfile: str
-            Returns a string of the restart file created from cpptraj
+            Returns a string of the new jobname
         """
         if direction == 'fwd':
             tag = "_f"
@@ -624,39 +625,19 @@ class ShootingPoint:
             # Copies the original rst7 file and renames it.
             tag = "_0"
             name = self.name + tag
-            shutil.copyfile(self.name + "_init.inp", name + ".inp")
+            shutil.copyfile(self.name + ".xyz", name + ".xyz")
             return name
         trajectory = name + ".xyz"
-        outfile = name + ".inp"
         outfile_jobname = name
 
-        
-
-        # Run cpptraj
-        topology_text = "PRMTOP"
-        trajectory_text = "TRAJECTORY"
-        deltaT_text = "FRAME"
-        outfile_text = "OUTFILE"
-
-        if isinstance(deltaT, str):
+        atoms, xyz = read_xyz_file(self.name + '.xyz')
+        if isinstance(deltaT, int):
             pass
         else:
-            deltaT = str(deltaT)
+            deltaT = int(deltaT)
 
-        substitutions = {topology_text: topology, trajectory_text: trajectory,
-                         deltaT_text: deltaT, outfile_text: outfile}
-
-        # First create input file (cpptraj.in)
-        with open(cpptrajskel, 'r') as file:
-            lines = file.readlines()
-        with open(cpptrajin, 'w') as file:
-            for line in lines:
-                file.write(find_and_replace(line, substitutions))
-
-        # Run cpptraj to get new restart file
-        commands = ["cpptraj.MPI", "-i", cpptrajin]
-        subprocess.run(commands, stdout=subprocess.DEVNULL)
-
+        write_xyz_frame(trajectory, atoms, xyz[deltaT],
+                        comment='dt = {}'.format(deltaT))
         return outfile_jobname
 
     def generate_velocity(self, output=None, topology="system.prmtop",
