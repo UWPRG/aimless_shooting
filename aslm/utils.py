@@ -129,3 +129,24 @@ def read_xyz_file(filename):
                 xyz_list.append(_xyz)
     xyz = np.array(xyz_list)
     return atoms, xyz
+
+
+def write_xyz_frame(filename, atoms, xyz, comment=''):
+    """Writes out a single frame to an xyz file.
+    
+    Parameters
+    ----------
+    filename : str
+        name of new xyz file
+    atoms : list
+    xyz : np.ndarray
+    comment : str, optional
+        string to appear in comment line
+    """
+    n_atoms = len(atoms)
+    with open(filename, 'w') as ofile:
+        ofile.write('{}\n {}\n'.format(n_atoms, comment))
+        for at, coord in zip(atoms, xyz):
+            ofile.write(
+                '{:4s}    {:-10.6f} {:-10.6f} {:-10.6f}\n'.format(at, *coord))
+    return
