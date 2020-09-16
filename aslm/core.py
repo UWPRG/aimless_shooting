@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-import mdtraj as md
+# import mdtraj as md
 import numpy as np
 
 from .utils import log_run, log_header, read_xyz_file, write_xyz_frame
@@ -27,7 +27,8 @@ class AimlessShooting:
     """
     def __init__(self, starting_points, accepts_goal=100, deltaT=10,
                  retries=10, max_count=2000, logfile='log', cores=1,
-                 colvar_name='COLVAR'):
+                 colvar_name='COLVAR', md_engine='CP2K', exe=None,
+                 mpiexec=None):
         self.starting_points = starting_points
         self.logfile = logfile
         self.queue = []
@@ -39,6 +40,9 @@ class AimlessShooting:
         self.deltaT = deltaT
         self.colvar_name = colvar_name
         self.cores = cores
+        self.md_engine = md_engine
+        self.exe = exe
+        self.mpiexec = mpiexec
         # self.counter = 0
         return
 
@@ -77,7 +81,7 @@ class AimlessShooting:
             self.generate_guesses()
             while self.queue or self.guesses:  # counter < max_count:
                 # Initialize a shooting point
-                sp = self.initialize_shooting_point()
+                sp = self.initialize_shooting_point(self.md_engine)
 
                 # If `self.initialize_shooting_point()` cannot generate a
                 # new shooting point, then it returns `1`.
@@ -87,7 +91,7 @@ class AimlessShooting:
                     pass
 
                 # Generate velocities
-                sp.generate_velocity()
+                # sp.generate_velocity(None, sp.atoms)
 
                 # Run forward simulation
                 sp.run_forward()
@@ -139,19 +143,36 @@ class AimlessShooting:
                         self.num_accepts += 1
 
                         # Generate 3 new shooting points
+                        # TODO: create variable that contains extension based
+                        #       on which MD engine so checking is not necessary
                         job1 = sp.generate_new_shooting_points(self.deltaT, 'fwd')
                         self.queue.append(job1)
-                        job1name = job1 + '.rst7'
+                        if sp.md_engine == "AMBER":
+                            job1name = job1 + '.rst7'
+                        elif sp.md_engine == "CP2K":
+                            job1name = job1 + '.xyz'
+                        else:
+                            raise Exception("MD engine not recognized.")
                         shutil.move(job1name, op.join('queue', job1name))
 
                         job2 = sp.generate_new_shooting_points(self.deltaT, 'rev')
                         self.queue.append(job2)
-                        job2name = job2 + '.rst7'
+                        if sp.md_engine == "AMBER":
+                            job2name = job2 + '.rst7'
+                        elif sp.md_engine == "CP2K":
+                            job2name = job2 + '.xyz'
+                        else:
+                            raise Exception("MD engine not recognized.")
                         shutil.move(job2name, op.join('queue', job2name))
 
                         job3 = sp.generate_new_shooting_points(self.deltaT, '0')
                         self.queue.append(job3)
-                        job3name = job3 + '.rst7'
+                        if sp.md_engine == "AMBER":
+                            job3name = job3 + '.rst7'
+                        elif sp.md_engine == "CP2K":
+                            job3name = job3 + '.xyz'
+                        else:
+                            raise Exception("MD engine not recognized.")
                         shutil.move(job3name, op.join('queue', job3name))
                     else:
                         raise Exception("Unknown shooting point result.")
@@ -186,7 +207,7 @@ class AimlessShooting:
     def remove_files(self, basename):
         name_tags = ['_r', '_f', '_init', '_init']
         out_tags = ['', '_out']
-        extensions = ['.rst7', '.out', '.nc', '.log', '.info']
+        extensions = ['.rst7', '.out', '.nc', '.log', '.info', '.xyz']
         for tag in name_tags:
             for out_tag in out_tags:
                 for ext in extensions:
@@ -271,33 +292,42 @@ class AimlessShooting:
         # Check queue first.
         if self.queue:
             directory = './queue'
-            # print('current directory:', directory)
             name = self.queue[0]
-            filename = name + '.inp'
-            target = name + '_init.inp'
-            shutil.copyfile(op.join(directory, filename), target)
             del self.queue[0]
         elif self.guesses:
             directory = './guesses'
-            # print('current directory:', directory)
             name = self.guesses[0]
-            filename = name + '.inp'
-            target = name + '_init.inp'
-            shutil.copyfile(op.join(directory, filename), target)
             del self.guesses[0]
         else:
             with open(self.logfile, 'a') as f:
                 f.write("# No more guesses available. Exiting.\n")
             return 1
-            # sys.exit()
 
-        sp = ShootingPoint(name, input_md='md.inp', input_init='md_init.inp',
-                           md_engine="CP2K")
+        coordfilename = name + '.xyz'
+        shutil.copyfile(op.join(directory, coordfilename), coordfilename)
+
+        inputfilename = name + '.inp'
+        if directory == './guesses':
+            atoms, xyz = read_xyz_file(op.join(directory, name + '.xyz'))
+            vel = get_maxwell_boltzmann_velocities(atoms, T=300,
+                                                   dim=3, units='au')
+            generate_cp2k_input_file(inputfilename,
+                                     jobname=name,
+                                     coord_file=coordfilename,
+                                     wfn_restart_file=name + ".wfn",
+                                     velocities=vel,
+                                     template="template.inp")
+        else:
+            shutil.copyfile(op.join(directory, inputfilename), inputfilename)
+
+        sp = ShootingPoint(name, input_md=inputfilename,
+                           topology_file=coordfilename,
+                           md_engine="CP2K", exe=self.exe, mpiexec=self.mpiexec)
         return sp
 
 
 def run_MD(inputfile, jobname, output=None, cores=1, topology="system.prmtop",
-           engine="AMBER"):
+           engine="AMBER", exe=None, mpiexec=None):
     """
     Python wrapper to run MD from commandline
 
@@ -318,7 +348,7 @@ def run_MD(inputfile, jobname, output=None, cores=1, topology="system.prmtop",
     if engine == "AMBER":
         run_AMBER(inputfile, jobname, output, cores, topology)
     elif engine == "CP2K":
-        run_CP2K(inputfile, jobname, output, cores, topology)
+        run_CP2K(inputfile, jobname, output, cores, exe, mpiexec)
     else:
         raise Exception("Engine '{}' is not supported, please".format(engine) +
                         " specify either 'AMBER' or 'CP2K'.")
@@ -366,7 +396,7 @@ def run_AMBER(inputfile, jobname, output=None, cores=1,
     return
 
 
-def run_CP2K(inputfile, jobname, output=None, cores=1, exe=None):
+def run_CP2K(inputfile, jobname, output=None, cores=1, exe=None, mpiexec=None):
     """
     Python wrapper to run CP2K MD from commandline
 
@@ -380,13 +410,24 @@ def run_CP2K(inputfile, jobname, output=None, cores=1, exe=None):
         file to redirect run output too
     exe : str
         path to the executable for CP2K
+    mpiexec : str
+        executable for MPI
     """
     assert op.exists(exe), "CP2K executable not found at: {}".format(exe)
 
-    commands = ["mpirun", "-np", str(cores), exe, 
+    commands = [
+                # mpiexec, "-np", str(cores),
+                exe, 
                 "-i", inputfile,
                 "-o", jobname + ".out",
                 ]
+    if mpiexec:
+        commands.insert(0, str(cores))
+        commands.insert(0, "-np")
+        commands.insert(0, mpiexec)
+    else:
+        pass
+
     if output:
         logf = open(output, 'w')
     else:
@@ -422,13 +463,19 @@ def find_and_replace(line, substitutions):
 
 class ShootingPoint:
     def __init__(self, name, input_md="nvt.in", input_init="init.in", cores=1,
-                 topology_file=None, md_engine="AMBER"):
+                 topology_file=None, md_engine="AMBER", exe=None, mpiexec=None):
         self.name = name  # Name of shooting point
         self.input_md = input_md  # Name of AMBER input file for running MD.
         self.input_init = input_init  # Name of AMBER input file for velocity generation.
         self.topology_file = topology_file  # Path to topology file
         self.md_engine = md_engine
+        if md_engine == 'CP2K':
+            self.atoms = self.get_atoms_list(topology_file)
+        else:
+            self.atoms = []
         self.cores = cores
+        self.exe = exe
+        self.mpiexec = mpiexec
         # self._input_file_dir = op.dirname(op.abspath(self.input_file))
         # self._input_file_name = op.splitext(op.basename(self.input_file))[0]
 
@@ -451,7 +498,8 @@ class ShootingPoint:
         jobname = self.name + "_f"
         output = self.name + "_f.log"
         run_MD(self.input_md, jobname, output, cores=self.cores,
-               topology=self.topology, engine=self.md_engine)
+               topology=self.topology_file, engine=self.md_engine, exe=self.exe,
+               mpiexec=self.mpiexec)
         self.forward_commit = self.check_if_committed(output)
 
         # Copy plumed log file to new directory with unique name.
@@ -469,7 +517,8 @@ class ShootingPoint:
         jobname = self.name + "_r"
         output = self.name + "_r.log"
         run_MD(self.input_md, jobname, output, cores=self.cores,
-               topology=self.topology, engine=self.md_engine)
+               topology=self.topology, engine=self.md_engine, exe=self.exe,
+               mpiexec=self.mpiexec)
         self.reverse_commit = self.check_if_committed(output)
 
         # Copy plumed log file to new directory with unique name.
@@ -617,16 +666,12 @@ class ShootingPoint:
         """
         if direction == 'fwd':
             tag = "_f"
-            name = self.name + tag
         elif direction == 'rev':
             tag = "_r"
-            name = self.name + tag
         elif direction == '0':
-            # Copies the original rst7 file and renames it.
             tag = "_0"
-            name = self.name + tag
-            shutil.copyfile(self.name + ".xyz", name + ".xyz")
-            return name
+            shutil.copyfile(self.name + ".xyz", self.name + tag + ".xyz")
+        name = self.name + tag
         trajectory = name + ".xyz"
         outfile_jobname = name
 
@@ -638,10 +683,31 @@ class ShootingPoint:
 
         write_xyz_frame(trajectory, atoms, xyz[deltaT],
                         comment='dt = {}'.format(deltaT))
+        vel = get_maxwell_boltzmann_velocities(atoms, T=300,
+                                               dim=3, units='au')
+        generate_cp2k_input_file(name + '.inp',
+                                 jobname=name,
+                                 coord_file=trajectory,
+                                 wfn_restart_file=name + ".wfn",
+                                 velocities=vel,
+                                 template="template.inp")
         return outfile_jobname
 
-    def generate_velocity(self, output=None, topology="system.prmtop",
-                          engine="AMBER", solvated=True):
+    def generate_velocity(self, output, atoms, T=300):
+        if self.md_engine == "AMBER":
+            self.generate_AMBER_velocity(output=output)
+            return
+        else:
+            pass
+
+        vel = get_maxwell_boltzmann_velocities(atoms, T=T,
+                                               dim=3, units='au')
+        write_xyz_frame(self.name + "_vel_f.xyz", atoms, vel)
+        write_xyz_frame(self.name + "_vel_r.xyz", atoms, -vel)
+        return
+
+    def generate_AMBER_velocity(self, output=None, topology="system.prmtop",
+                                engine="AMBER", solvated=True):
         """
         Function takes shooting point and generates velocities by running MD
         for 1 step with a very small timestep. It then generates the starting
@@ -735,6 +801,10 @@ class ShootingPoint:
                 self.forward_commit, filename=filename)
         return
 
+    def get_atoms_list(self, topology):
+        atoms, xyz = read_xyz_file(topology)
+        return atoms
+
 
 def save_colvar(colvar_name, jobname):
     # Copy COLVAR file to new directory with unique name.
@@ -742,4 +812,124 @@ def save_colvar(colvar_name, jobname):
         shutil.move(colvar_name, op.join('COLVARS', jobname + '_COLVAR'))
     else:
         raise Exception("There is no 'COLVARS' directory.")
+    return
+
+
+def get_maxwell_boltzmann_velocities(atoms, T=300, dim=3, units='au'):
+    """Generates atomic velocities from a Maxwell-Boltzmann distribution.
+
+    Parameters
+    ----------
+    atoms : array-like of str
+        Array containing atomic symbols.
+    T : float, optional
+        Reference temperature for Maxwell-Boltzmann distribution.
+        Default is 300 K.
+    dim : int, optional
+        Specifies the dimensionality of the velocities. Default is
+        3 dimensions.
+    units : str, optional
+        Specifies units for velocity. Default is au (bohr / au_time).
+        Possible choices are ['au', 'm/s'].
+
+    Returns
+    -------
+    v : np.ndarray
+        Atomic velocities in specified number of dimensions.
+        Units of `v` are in au (bohr / au_time)."""
+
+    kB = 1.380649e-23            # J / K
+    au_time_factor = 0.0242e-15  # s / au_time
+    bohr_factor = 5.29e-11       # m / bohr
+
+    mass = atomic_symbols_to_mass(atoms)
+    n_atoms = len(mass)
+
+    # Number of degrees of freedom
+    if dim == 3:
+        dof = dim * n_atoms - 6
+    elif dim == 2:
+        dof = dim * n_atoms - 3
+    elif dim == 1:
+        dof = dim * n_atoms - 1
+    else:
+        raise Exception("Number of dimensions must be 3, 2, or 1")
+
+    # Convert mass from amu to kg
+    mass = np.asarray(mass).reshape(-1, 1) / 1000 / 6.022e23
+
+    v_raw = np.sqrt(kB * T / mass) * np.random.normal(size=(n_atoms, dim))
+
+    # Shift velocities by mean momentum such that total
+    # box momentum is 0 in all dimensions.
+    p_mean = np.sum(mass * v_raw, axis=0) / n_atoms
+    v_mean = p_mean / mass.mean()
+    v_shifted = v_raw - v_mean
+    
+    # Scale velocities to exact target temperature.
+    # Prevents systems with few atoms from sampling far away from target T.
+    T_shifted = np.sum(mass * v_shifted ** 2) / (dof * kB)
+    scale = np.sqrt(T / T_shifted)
+    v_scaled = v_shifted * scale
+
+    # Unit conversion from m/s to final units
+    if units == 'm/s':
+        v = v_scaled
+    elif units == 'au':
+        v = v_scaled * au_time_factor / bohr_factor
+    else:
+        raise Exception("Invalid units for velocity: {}.".format(units)
+                        + " Choose from ['au', 'm/s'].")
+    return v
+
+
+def atomic_symbols_to_mass(atoms):
+    """Converts atomic symbols to their atomic masses in amu."""
+    atomic_mass_dict = get_atomic_mass_dict()
+    masses = []
+    for atom in atoms:
+        masses.append(atomic_mass_dict[atom])
+    return masses
+
+
+def get_atomic_mass_dict():
+    atomic_mass_dict = {}
+    dir_path = op.dirname(op.realpath(__file__))
+    with open(op.join(dir_path, 'data', 'atomic_info.dat')) as f:
+        for line in f:
+            data = line.split()
+            if data[-1].startswith('('):
+                data[-1] = data[-1][1:-1]
+            atomic_mass_dict[data[1]] = float(data[-1])
+    return atomic_mass_dict
+
+
+def generate_cp2k_input_file(input_file, jobname, coord_file,
+                             wfn_restart_file, velocities, template):
+
+    vel_subst = '\n'.join(["       {: .8e} {: .8e} {: .8e}".format(vx, vy, vz)
+                           for vx, vy, vz in velocities])
+
+    subst_dict = {"jobname": jobname,
+                  "system_coords": coord_file,
+                  "wfn_restart": wfn_restart_file,
+                  "INSERT_VELOCITIES_HERE": vel_subst}
+
+    with open(input_file, 'w') as new_file:
+        with open(template) as old_file:
+            for line in old_file:
+                pattern = None
+                subst = None
+
+                for _pattern, _subst in subst_dict.items():
+                    if _pattern in line:
+                        pattern = _pattern
+                        subst = _subst
+                    else:
+                        pass
+
+                if pattern:
+                    new_file.write(line.replace(pattern, subst))
+                else:
+                    new_file.write(line)
     return
