@@ -1,5 +1,7 @@
+import glob
 import os
 import os.path as op
+import random
 import re
 import shutil
 import subprocess
@@ -48,6 +50,7 @@ class AimlessShooting:
 
     def generate_guesses(self):
         filenames = os.listdir(self.starting_points)
+        random.shuffle(filenames)
         for f in filenames:
             name = op.splitext(f)[0]
             self.guesses.append(name)
@@ -94,7 +97,7 @@ class AimlessShooting:
                 # sp.generate_velocity(None, sp.atoms)
 
                 # Run forward simulation
-                sp.run_forward()
+                vel = sp.run_forward()
 
                 # Create log file and write header.
                 if not op.exists(self.logfile):
@@ -111,7 +114,11 @@ class AimlessShooting:
                 if sp.forward_commit is None:
                     # Log results
                     sp.result = 'inconclusive'
-                    sp.log(self.logfile)
+                    passed = sp.log(self.logfile)
+                    if passed:
+                        pass
+                    else:
+                        continue
                     save_colvar(self.colvar_name, sp.name + '_f')
 
                     # Check to see how many times sp has attempted to commit
@@ -126,7 +133,7 @@ class AimlessShooting:
                     # Save the COLVAR of the previous run before starting new run.
                     save_colvar(self.colvar_name, sp.name + '_f')
                     # Continue to run the reverse simulation
-                    sp.run_reverse()
+                    sp.run_reverse(vel)
                     # If reverse simulation does not commit to a basin
                     if sp.reverse_commit is None:
                         sp.result = 'inconclusive'
@@ -205,16 +212,43 @@ class AimlessShooting:
         # return
 
     def remove_files(self, basename):
-        name_tags = ['_r', '_f', '_init', '_init']
-        out_tags = ['', '_out']
-        extensions = ['.rst7', '.out', '.nc', '.log', '.info', '.xyz']
+        name_tags = ['', '_r', '_f', '_init']
+        out_tags = ['', '_out', '-RESTART', '-pos-1', '-1', '_run']
+        extensions = ['.rst7', '.out', '.nc', '.log', '.info', '.xyz', '.inp',
+                      '.restart', '.ener', '.wfn']
+        post_ext = ['', '.bak-1', '.bak-2', '.bak-3']
         for tag in name_tags:
             for out_tag in out_tags:
                 for ext in extensions:
-                    if op.exists(basename + tag + out_tag + ext):
-                        os.remove(basename + tag + out_tag + ext)
-                    else:
-                        pass
+                    for p_ext in post_ext:
+                        if op.exists(basename + tag + out_tag + ext + p_ext):
+                            os.remove(basename + tag + out_tag + ext + p_ext)
+                        else:
+                            pass
+
+        # Remove any "core.*" files that result from killed jobs
+        core_dumps = glob.glob("./core.*", recursive=False)
+        for core_dump in core_dumps:
+            try:
+                os.remove(core_dump)
+            except OSError:
+                print("Error while deleting file")
+
+        # Remove any "bck.*.PLUMED.OUT" files that result from killed jobs
+        plumed_bck = glob.glob("./bck.*", recursive=False)
+        for bck in plumed_bck:
+            try:
+                os.remove(bck)
+            except OSError:
+                print("Error while deleting file")
+
+        # Remove any "cp2k.psmp.*" files that result from killed jobs
+        cp2k_crash = glob.glob("./cp2k.psmp.*", recursive=False)
+        for crash in cp2k_crash:
+            try:
+                os.remove(crash)
+            except OSError:
+                print("Error while deleting file")
         return
 
     def initialize_shooting_point(self, engine):
@@ -306,22 +340,21 @@ class AimlessShooting:
         coordfilename = name + '.xyz'
         shutil.copyfile(op.join(directory, coordfilename), coordfilename)
 
-        inputfilename = name + '.inp'
-        if directory == './guesses':
-            atoms, xyz = read_xyz_file(op.join(directory, name + '.xyz'))
-            vel = get_maxwell_boltzmann_velocities(atoms, T=300,
-                                                   dim=3, units='au')
-            generate_cp2k_input_file(inputfilename,
-                                     jobname=name,
-                                     coord_file=coordfilename,
-                                     wfn_restart_file=name + ".wfn",
-                                     velocities=vel,
-                                     template="template.inp")
-        else:
-            shutil.copyfile(op.join(directory, inputfilename), inputfilename)
+        # inputfilename = name + '.inp'
+        # if directory == './guesses':
+            # atoms, xyz = read_xyz_file(op.join(directory, name + '.xyz'))
+            # vel = get_maxwell_boltzmann_velocities(atoms, T=300,
+                                                   # dim=3, units='au')
+            # generate_cp2k_input_file(inputfilename,
+                                     # jobname=name,
+                                     # coord_file=coordfilename,
+                                     # wfn_restart_file=name + ".wfn",
+                                     # velocities=vel,
+                                     # template="template.inp")
+        # else:
+            # shutil.copyfile(op.join(directory, inputfilename), inputfilename)
 
-        sp = ShootingPoint(name, input_md=inputfilename,
-                           topology_file=coordfilename,
+        sp = ShootingPoint(name, topology_file=coordfilename, cores=self.cores,
                            md_engine="CP2K", exe=self.exe, mpiexec=self.mpiexec)
         return sp
 
@@ -396,7 +429,7 @@ def run_AMBER(inputfile, jobname, output=None, cores=1,
     return
 
 
-def run_CP2K(inputfile, jobname, output=None, cores=1, exe=None, mpiexec=None):
+def run_CP2K(inputfile, jobname, output='output', cores=1, exe=None, mpiexec=None):
     """
     Python wrapper to run CP2K MD from commandline
 
@@ -416,16 +449,17 @@ def run_CP2K(inputfile, jobname, output=None, cores=1, exe=None, mpiexec=None):
     assert op.exists(exe), "CP2K executable not found at: {}".format(exe)
 
     commands = [
-                # mpiexec, "-np", str(cores),
                 exe, 
                 "-i", inputfile,
                 "-o", jobname + ".out",
                 ]
     if mpiexec:
         commands.insert(0, str(cores))
-        commands.insert(0, "-np")
+        commands.insert(0, "-n")
         commands.insert(0, mpiexec)
+        print(commands)
     else:
+        print("no mpi")
         pass
 
     if output:
@@ -496,7 +530,28 @@ class ShootingPoint:
             Input file for MD production run
         """
         jobname = self.name + "_f"
-        output = self.name + "_f.log"
+        if self.md_engine == "AMBER":
+            output = self.name + "_f.log"
+        elif self.md_engine == "CP2K":
+            output = "PLUMED.OUT"
+
+        # Generate MD input file if CP2K
+        if self.md_engine == "CP2K":
+            inputfilename = jobname + '_run.inp'
+            coordfilename = self.name + '.xyz'
+            atoms, xyz = read_xyz_file(coordfilename)
+            vel = get_maxwell_boltzmann_velocities(atoms, T=300,
+                                                   dim=3, units='au')
+            generate_cp2k_input_file(inputfilename,
+                                     jobname=jobname,
+                                     coord_file=coordfilename,
+                                     wfn_restart_file=jobname + ".wfn",
+                                     velocities=vel,
+                                     template="template.inp")
+            self.input_md = inputfilename
+        else:
+            raise Exception("Needs to be updated to work with AMBER")
+
         run_MD(self.input_md, jobname, output, cores=self.cores,
                topology=self.topology_file, engine=self.md_engine, exe=self.exe,
                mpiexec=self.mpiexec)
@@ -507,17 +562,35 @@ class ShootingPoint:
             shutil.move(output, op.join('plumed_log', output))
         else:
             raise Exception("There is no 'plumed_log' directory.")
-        return
+        return vel
 
-    def run_reverse(self):
+    def run_reverse(self, velocities=None):
         """
         Function launches reverse simulation based on provided MD input file
         and calls check_if_committed to evaluate if the run ends up in a basin
         """
         jobname = self.name + "_r"
-        output = self.name + "_r.log"
+        if self.md_engine == "AMBER":
+            output = self.name + "_r.log"
+        elif self.md_engine == "CP2K":
+            output = "PLUMED.OUT"
+
+        # Generate MD input file if CP2K
+        if self.md_engine == "CP2K":
+            inputfilename = jobname + '_run.inp'
+            coordfilename = self.name + '.xyz'
+            generate_cp2k_input_file(inputfilename,
+                                     jobname=jobname,
+                                     coord_file=coordfilename,
+                                     wfn_restart_file=jobname + ".wfn",
+                                     velocities=-velocities,
+                                     template="template.inp")
+            self.input_md = inputfilename
+        else:
+            raise Exception("Needs to be updated to work with AMBER")
+
         run_MD(self.input_md, jobname, output, cores=self.cores,
-               topology=self.topology, engine=self.md_engine, exe=self.exe,
+               topology=self.topology_file, engine=self.md_engine, exe=self.exe,
                mpiexec=self.mpiexec)
         self.reverse_commit = self.check_if_committed(output)
 
@@ -558,11 +631,11 @@ class ShootingPoint:
 
     def generate_new_shooting_points(self, deltaT, direction):
         if self.md_engine == "AMBER":
-            return self.generate_new_AMBER_shooting_points(self, deltaT,
+            return self.generate_new_AMBER_shooting_points(deltaT,
                                                            direction,
                                                            self.topology)
         elif self.md_engine == "CP2K":
-            return self.generate_new_CP2K_shooting_points(self, deltaT,
+            return self.generate_new_CP2K_shooting_points(deltaT,
                                                           direction)
         else:
             raise Exception("Engine '{}' is not supported, ".format(engine) +
@@ -671,26 +744,23 @@ class ShootingPoint:
         elif direction == '0':
             tag = "_0"
             shutil.copyfile(self.name + ".xyz", self.name + tag + ".xyz")
+            return self.name + tag
         name = self.name + tag
         trajectory = name + ".xyz"
         outfile_jobname = name
 
-        atoms, xyz = read_xyz_file(self.name + '.xyz')
+        atoms, xyz = read_xyz_file(self.name + tag + '-pos-1.xyz')
         if isinstance(deltaT, int):
             pass
         else:
             deltaT = int(deltaT)
-
-        write_xyz_frame(trajectory, atoms, xyz[deltaT],
-                        comment='dt = {}'.format(deltaT))
-        vel = get_maxwell_boltzmann_velocities(atoms, T=300,
-                                               dim=3, units='au')
-        generate_cp2k_input_file(name + '.inp',
-                                 jobname=name,
-                                 coord_file=trajectory,
-                                 wfn_restart_file=name + ".wfn",
-                                 velocities=vel,
-                                 template="template.inp")
+        
+        if len(xyz) <= deltaT:
+            write_xyz_frame(trajectory, atoms, xyz[-1],
+                            comment='dt = {}'.format(deltaT))
+        else:
+            write_xyz_frame(trajectory, atoms, xyz[deltaT],
+                            comment='dt = {}'.format(len(xyz)))
         return outfile_jobname
 
     def generate_velocity(self, output, atoms, T=300):
@@ -787,19 +857,27 @@ class ShootingPoint:
         -------
         data : numpy.ndarray
             Values of CVs in first line, excluding time value."""
-        data = np.genfromtxt(colvar_file, max_rows=1)
-        self.cv_values = data[1:]
-        return
+        try:
+            data = np.genfromtxt(colvar_file, max_rows=1)
+            self.cv_values = data[1:]
+        except OSError:
+            with open("errors.dat", 'a') as f:
+                f.write("Failed to generate COLVAR: {}".format(self.name))
+            return False
+        return True
 
     def log(self, filename='log'):
         """Logging method."""
         if self.cv_values:
             pass
         else:
-            self._read_cv_values()
-        log_run(self.name, self.cv_values, self.result,
-                self.forward_commit, filename=filename)
-        return
+            passed = self._read_cv_values()
+        if passed:
+            log_run(self.name, self.cv_values, self.result,
+                    self.forward_commit, filename=filename)
+            return passed
+        else:
+            return passed
 
     def get_atoms_list(self, topology):
         atoms, xyz = read_xyz_file(topology)
